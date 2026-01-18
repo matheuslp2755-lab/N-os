@@ -22,54 +22,38 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     if (!user) return;
 
-    // Sincronização Robusta com OneSignal
-    const syncOneSignal = () => {
+    // Sincronização de Identidade OneSignal <-> Firebase
+    const syncOneSignalIdentity = () => {
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       window.OneSignalDeferred.push(async (OneSignal: any) => {
         try {
-          console.log("Néos Push: Iniciando vinculação para o usuário:", user.uid);
+          console.log("Néos Push: Vinculando usuário ao OneSignal...", user.uid);
           
-          // 1. Define o External ID (Link fundamental entre Firebase e OneSignal)
+          // Vincula este dispositivo ao UID do Firebase (External ID)
           await OneSignal.login(user.uid);
           
-          // 2. Força o Opt-In se a permissão já foi concedida no navegador
+          // Garante que o usuário está inscrito se deu permissão
           if (Notification.permission === 'granted') {
             await OneSignal.User.PushSubscription.optIn();
           }
 
-          // 3. Loop de verificação: O SDK do OneSignal às vezes demora para gerar o ID de assinatura
-          let attempts = 0;
-          const verifySubscription = async () => {
-            const subscriptionId = OneSignal.User.PushSubscription.id;
-            const isOptedIn = OneSignal.User.PushSubscription.optedIn;
-
-            if (subscriptionId && isOptedIn) {
-              console.log("Néos Push: Dispositivo vinculado com sucesso. Subscription ID:", subscriptionId);
-              
-              // Atualiza o Firestore com o ID real para backup e monitoramento
-              const userRef = doc(db, 'users', user.uid);
-              await updateDoc(userRef, {
-                oneSignalPlayerId: subscriptionId,
-                pushEnabled: true,
-                lastPushSync: serverTimestamp()
-              });
-            } else if (attempts < 8) {
-              attempts++;
-              console.log(`Néos Push: Aguardando registro do dispositivo... tentativa ${attempts}`);
-              setTimeout(verifySubscription, 2000);
-            }
-          };
-
-          verifySubscription();
-
+          // Salva o ID de subscrição no Firestore para monitoramento técnico
+          const subscriptionId = OneSignal.User.PushSubscription.id;
+          if (subscriptionId) {
+            await updateDoc(doc(db, 'users', user.uid), {
+              oneSignalSubscriptionId: subscriptionId,
+              pushEnabled: true,
+              lastPushSync: serverTimestamp()
+            });
+          }
         } catch (err) {
-          console.error("Néos OneSignal Auth Error:", err);
+          console.error("Néos Push Sync Error:", err);
         }
       });
     };
 
-    // Pequeno delay para garantir que o Firebase Auth esteja estável
-    const timer = setTimeout(syncOneSignal, 2000);
+    // Executa a sincronização após o login
+    const timer = setTimeout(syncOneSignalIdentity, 2000);
     return () => clearTimeout(timer);
   }, [user]);
 
