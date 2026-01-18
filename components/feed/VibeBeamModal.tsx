@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { auth, db, doc, serverTimestamp, collection, query, where, onSnapshot, setDoc, deleteDoc, storage, storageRef, uploadBytes, getDownloadURL, addDoc } from '../../firebase';
+import { auth, db, doc, serverTimestamp, collection, query, where, onSnapshot, setDoc, deleteDoc, storage, storageRef, uploadBytes, getDownloadURL, addDoc, updateDoc } from '../../firebase';
 import { useLanguage } from '../../context/LanguageContext';
 import Button from '../common/Button';
 
@@ -60,17 +60,25 @@ const VibeBeamModal: React.FC<VibeBeamModalProps> = ({ isOpen, onClose, onSelect
                     userId: currentUser.uid,
                     username: currentUser.displayName,
                     avatar: currentUser.photoURL,
-                    // Precisão de 2 casas decimais cria um quadrante de ~1.1km (Ideal para festivais/encontros)
+                    // Usamos uma precisão de 2 casas decimais (~1km) para agrupar usuários no mesmo local
                     lat: Number(pos.coords.latitude.toFixed(2)), 
                     lng: Number(pos.coords.longitude.toFixed(2)),
                     lastPulse: Date.now()
                 };
 
+                // Atualizar no banco de Beams
                 await setDoc(doc(db, 'active_beams', currentUser.uid), beamData);
+                
+                // Também atualiza a localização geral do usuário para o Radar Perto normal
+                await updateDoc(doc(db, 'users', currentUser.uid), {
+                    location: { lat: pos.coords.latitude, lng: pos.coords.longitude },
+                    lastSeen: serverTimestamp()
+                });
+
                 listenForNearby(beamData);
             }, (err) => {
                 console.error("GPS Beam Error", err);
-                alert("Ative a localização para usar o Néos Beam.");
+                alert("Por favor, ative a localização para que o Beam encontre seus amigos.");
                 setStatus('off');
             }, { enableHighAccuracy: true });
         };
@@ -90,17 +98,9 @@ const VibeBeamModal: React.FC<VibeBeamModalProps> = ({ isOpen, onClose, onSelect
             const now = Date.now();
             const found = snapshot.docs
                 .map(d => d.data())
-                .filter(u => u.userId !== currentUser?.uid && (now - u.lastPulse < 15000)); 
+                .filter(u => u.userId !== currentUser?.uid && (now - u.lastPulse < 20000)); // Usuários ativos nos últimos 20s
             setNearbyUsers(found);
         });
-    };
-
-    const handleAvatarClick = (e: React.MouseEvent, targetUserId: string) => {
-        e.stopPropagation();
-        if (onSelectUser) {
-            onSelectUser(targetUserId);
-            onClose();
-        }
     };
 
     const handleSendToUser = async (targetUser: any) => {
@@ -205,7 +205,7 @@ const VibeBeamModal: React.FC<VibeBeamModalProps> = ({ isOpen, onClose, onSelect
                         
                         <div className="space-y-2">
                             <h2 className="text-4xl font-black text-white uppercase italic tracking-tighter">Néos Beam</h2>
-                            <p className="text-zinc-500 text-sm px-6 leading-relaxed font-medium">Selecione uma foto e veja quem está ao seu redor agora.</p>
+                            <p className="text-zinc-500 text-sm px-6 leading-relaxed font-medium">Selecione uma foto e ative o radar para encontrar quem está ao seu redor.</p>
                         </div>
 
                         <Button 
