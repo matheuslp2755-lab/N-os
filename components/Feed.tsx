@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import Header from './common/Header';
 import BottomNav from './common/BottomNav';
@@ -51,21 +52,11 @@ const Feed: React.FC = () => {
         const permission = await OneSignal.Notifications.permission;
         if (permission !== 'granted') {
           setShowPushBanner(true);
-        } else {
-          // Já concedido: garante ID atualizado
-          const pushUser = await OneSignal.User;
-          const pushId = pushUser?.pushSubscription?.id;
-          if (pushId && currentUser) {
-            await updateDoc(doc(db, 'users', currentUser.uid), {
-              oneSignalPlayerId: pushId,
-              pushEnabled: true
-            });
-          }
         }
       });
     };
     checkPushPermission();
-  }, [currentUser]);
+  }, []);
 
   const handleEnablePush = async () => {
     (window as any).OneSignalDeferred.push(async (OneSignal: any) => {
@@ -85,7 +76,6 @@ const Feed: React.FC = () => {
               lastPushSync: serverTimestamp()
             });
             setShowPushBanner(false);
-            alert("Notificações Néos configuradas com sucesso!");
           }
         }, 2000);
       } catch (err) {

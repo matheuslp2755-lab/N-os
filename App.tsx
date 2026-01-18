@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, StrictMode } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth, db, doc, updateDoc, serverTimestamp } from './firebase';
+import { auth, db, doc, updateDoc, serverTimestamp, getDoc } from './firebase';
 import Login from './components/Login';
 import SignUp from './context/SignUp';
 import Feed from './components/Feed';
@@ -19,29 +20,39 @@ const AppContent: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [authPage, setAuthPage] = useState<'login' | 'signup'>('login');
 
-  // SINCRONIZAÇÃO AUTOMÁTICA ONESIGNAL
+  // SINCRONIZAÇÃO ONESIGNAL PÓS-LOGIN
   useEffect(() => {
     if (!user) return;
 
-    const syncPushToken = () => {
+    const syncOneSignal = () => {
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       window.OneSignalDeferred.push(async (OneSignal: any) => {
-        // Se já tivermos permissão, pegamos o ID e salvamos no banco
-        const pushUser = await OneSignal.User;
-        const pushId = pushUser?.pushSubscription?.id;
-        
-        if (pushId && user) {
-          console.log("Néos: Sincronizando Push ID:", pushId);
-          await updateDoc(doc(db, 'users', user.uid), {
-            oneSignalPlayerId: pushId,
-            pushEnabled: true,
-            lastPushSync: serverTimestamp()
-          });
+        try {
+          // 1. Identificar o usuário no OneSignal usando o UID do Firebase (External ID)
+          await OneSignal.login(user.uid);
+          
+          // 2. Tentar capturar o ID de Inscrição atual
+          const pushUser = await OneSignal.User;
+          const pushId = pushUser?.pushSubscription?.id;
+          
+          if (pushId) {
+            console.log("Néos Auth: Vinculando Push ID:", pushId);
+            const userRef = doc(db, 'users', user.uid);
+            await updateDoc(userRef, {
+              oneSignalPlayerId: pushId,
+              pushEnabled: true,
+              lastPushSync: serverTimestamp()
+            });
+          }
+        } catch (err) {
+          console.error("Néos Auth: Erro ao sincronizar OneSignal:", err);
         }
       });
     };
 
-    syncPushToken();
+    // Pequeno delay para garantir que o documento do usuário já existe em caso de novo registro
+    const timer = setTimeout(syncOneSignal, 2000);
+    return () => clearTimeout(timer);
   }, [user]);
 
   useEffect(() => {
