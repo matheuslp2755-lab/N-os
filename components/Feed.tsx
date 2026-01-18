@@ -15,7 +15,7 @@ import VibeBrowser from './browser/VibeBrowser';
 import CreateMenuModal from './feed/CreateMenuModal';
 import VibeBeamModal from './feed/VibeBeamModal';
 import WeatherBanner from './feed/WeatherBanner';
-import { auth, db, collection, query, onSnapshot, orderBy, getDocs, where, doc, getDoc, limit, deleteDoc, updateDoc, increment } from '../firebase';
+import { auth, db, collection, query, onSnapshot, orderBy, getDocs, where, doc, getDoc, limit, deleteDoc, updateDoc, increment, serverTimestamp } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
 
 const Feed: React.FC = () => {
@@ -25,6 +25,7 @@ const Feed: React.FC = () => {
   const [posts, setPosts] = useState<any[]>([]);
   const [usersWithPulses, setUsersWithPulses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showPushBanner, setShowPushBanner] = useState(false);
   
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
@@ -42,6 +43,39 @@ const Feed: React.FC = () => {
 
   const currentUser = auth.currentUser;
 
+  // Verifica se precisa pedir push
+  useEffect(() => {
+    const checkPush = async () => {
+      if (typeof window.OneSignal !== 'undefined') {
+        const permission = await window.OneSignal.Notifications.permission;
+        if (permission !== 'granted') {
+          setShowPushBanner(true);
+        }
+      }
+    };
+    checkPush();
+  }, []);
+
+  const handleEnablePush = async () => {
+    try {
+      await window.OneSignal.Notifications.requestPermission();
+      const pushUser = await window.OneSignal.User;
+      const pushId = pushUser?.pushSubscription?.id;
+      
+      if (pushId && currentUser) {
+        await updateDoc(doc(db, 'users', currentUser.uid), {
+          oneSignalPlayerId: pushId,
+          pushEnabled: true,
+          lastPushSync: serverTimestamp()
+        });
+        setShowPushBanner(false);
+        alert("Notificações ativadas com sucesso!");
+      }
+    } catch (err) {
+      console.error("Erro ao ativar push:", err);
+    }
+  };
+
   useEffect(() => {
     if (viewMode === 'feed' && !viewingProfileId) {
       setLoading(true);
@@ -51,19 +85,15 @@ const Feed: React.FC = () => {
           const fetchedPosts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
           
           const visiblePosts = fetchedPosts.filter(p => {
-              // Lógica de limite de visualizações
               if (p.viewLimit && p.viewerCounts && currentUser) {
                 const myViews = p.viewerCounts[currentUser.uid] || 0;
                 if (myViews >= p.viewLimit && p.userId !== currentUser.uid) return false;
               }
-
-              // Lógica de amigos próximos
               if (!p.isFriendOnly) return true;
               if (p.userId === currentUser?.uid) return true;
               return p.closeFriendsIds?.includes(currentUser?.uid);
           });
 
-          // Incrementar contagem de visualização para os posts que apareceram
           if (currentUser) {
             visiblePosts.forEach(p => {
               if (p.viewLimit && p.userId !== currentUser.uid) {
@@ -166,7 +196,6 @@ const Feed: React.FC = () => {
             </button>
             <button onClick={() => setIsMessagesOpen(true)} className="flex items-center gap-4 p-3 rounded-2xl hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-all"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg><span>{t('header.messages')}</span></button>
             <button onClick={() => setIsMenuOpen(true)} className="flex items-center gap-4 p-3 rounded-2xl hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-all"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path d="M12 4v16m8-8H4" /></svg><span>{t('header.create')}</span></button>
-            {/* Fixed stray angle bracket below */}
             <button onClick={() => handleSelectUser(currentUser?.uid || '')} className={`flex items-center gap-4 p-3 rounded-2xl hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-all ${viewMode === 'profile' && viewingProfileId === currentUser?.uid ? 'font-bold bg-zinc-50 dark:bg-zinc-900' : ''}`}><img src={currentUser?.photoURL || 'https://firebasestorage.googleapis.com/v0/b/teste-rede-fcb99.appspot.com/o/assets%2Fdefault-avatar.png?alt=media'} className="w-6 h-6 rounded-full object-cover border dark:border-zinc-700" /><span>{t('header.profile')}</span></button>
         </nav>
       </div>
@@ -181,6 +210,18 @@ const Feed: React.FC = () => {
            <div className="container mx-auto max-w-4xl py-4"><UserProfile userId={viewingProfileId || currentUser?.uid || ''} onStartMessage={(u) => { setTargetUserForMessages(u); setIsMessagesOpen(true); }} onSelectUser={handleSelectUser} /></div>
          ) : (
           <div className="container mx-auto max-w-lg py-4 pb-24 px-4">
+            {showPushBanner && (
+              <div className="mb-6 p-5 bg-sky-500 rounded-[2rem] text-white flex items-center justify-between shadow-lg shadow-sky-500/20 animate-bounce-subtle">
+                <div className="flex items-center gap-3">
+                  <div className="bg-white/20 p-2 rounded-full">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                  </div>
+                  <p className="text-xs font-black uppercase tracking-tight">Ative as Notificações Push</p>
+                </div>
+                <button onClick={handleEnablePush} className="bg-white text-sky-600 px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest active:scale-95 transition-transform">Ativar</button>
+              </div>
+            )}
+
             <PulseBar 
               usersWithPulses={usersWithPulses} 
               onViewPulses={authorId => {

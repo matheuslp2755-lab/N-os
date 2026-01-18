@@ -19,15 +19,11 @@ const AppContent: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [authPage, setAuthPage] = useState<'login' | 'signup'>('login');
 
-  // INTEGRAÇÃO ONESIGNAL (PUSH NOTIFICATIONS) - VERSÃO REFORÇADA
+  // INICIALIZAÇÃO SILENCIOSA DO ONESIGNAL
   useEffect(() => {
-    if (!user) return;
-
-    const setupPush = async () => {
+    const initOneSignal = async () => {
       try {
         const OneSignal = window.OneSignal || [];
-        
-        // Inicializa com as configurações de permissão automática
         await OneSignal.init({
           appId: "c7219360-ec10-4c6e-a599-0255216ec17e",
           safari_web_id: "web.onesignal.auto.10444390-e374-4b53-9363-239108f97116",
@@ -35,44 +31,23 @@ const AppContent: React.FC = () => {
           allowLocalhostAsSecureOrigin: true,
         });
 
-        // Tenta exibir o prompt de permissão nativo imediatamente após o login
-        const permission = await OneSignal.Notifications.permission;
-        if (permission !== 'granted') {
-          console.log("Néos Push: Solicitando permissão...");
-          await OneSignal.Notifications.requestPermission();
-        }
-
-        // Captura o ID do usuário (Subscription ID)
-        const pushUser = await OneSignal.User;
-        const pushId = pushUser?.pushSubscription?.id;
-        
-        if (pushId) {
-          console.log("Néos Push: Dispositivo registrado com ID:", pushId);
-          const userRef = doc(db, 'users', user.uid);
-          await updateDoc(userRef, {
-            oneSignalPlayerId: pushId,
-            pushEnabled: true,
-            lastPushSync: serverTimestamp()
-          });
-        }
-
-        // Listener para mudanças na inscrição (caso o ID mude)
-        OneSignal.Notifications.addEventListener("permissionChange", async (permission: string) => {
-          console.log("Néos Push: Permissão alterada para:", permission);
-          if (permission === "granted") {
-            const newId = OneSignal.User?.pushSubscription?.id;
-            if (newId) {
-              await updateDoc(doc(db, 'users', user.uid), { oneSignalPlayerId: newId });
-            }
+        // Tenta sincronizar o ID se já houver permissão
+        if (user) {
+          const pushUser = await OneSignal.User;
+          const pushId = pushUser?.pushSubscription?.id;
+          if (pushId) {
+            await updateDoc(doc(db, 'users', user.uid), {
+              oneSignalPlayerId: pushId,
+              pushEnabled: true
+            });
           }
-        });
-
+        }
       } catch (err) {
-        console.error("Néos Push: Falha na configuração:", err);
+        console.warn("OneSignal Init Error:", err);
       }
     };
 
-    setupPush();
+    initOneSignal();
   }, [user]);
 
   useEffect(() => {
