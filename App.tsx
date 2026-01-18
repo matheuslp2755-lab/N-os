@@ -26,39 +26,25 @@ const AppContent: React.FC = () => {
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       window.OneSignalDeferred.push(async (OneSignal: any) => {
         try {
-          // 1. Login do Usuário (External ID)
+          // CRÍTICO: Vincula o UID do Firebase ao OneSignal para envio via Backend
           await OneSignal.login(user.uid);
-          console.log("Néos OneSignal: Usuário identificado:", user.uid);
+          console.log("Néos Auth: OneSignal vinculado ao ID:", user.uid);
           
-          // 2. Se permissão concedida, garantir optIn na v16
+          // Verifica se o usuário aceitou notificações e forçar opt-in se possível
           if (Notification.permission === 'granted') {
             await OneSignal.User.PushSubscription.optIn();
           }
 
-          // 3. Loop de verificação para capturar o ID (ele pode levar segundos para ser gerado)
-          let attempts = 0;
-          const checkAndSaveSubscription = async () => {
-            const pushId = OneSignal.User.PushSubscription.id;
-            
-            if (pushId) {
-              console.log("Néos OneSignal: Salvando Subscription ID no Firestore:", pushId);
-              const userRef = doc(db, 'users', user.uid);
-              await updateDoc(userRef, {
-                oneSignalPlayerId: pushId,
-                pushEnabled: true,
-                lastPushSync: serverTimestamp()
-              });
-            } else if (attempts < 5) {
-              attempts++;
-              console.log(`Néos OneSignal: Aguardando ID... tentativa ${attempts}`);
-              setTimeout(checkAndSaveSubscription, 3000);
-            }
-          };
-
-          checkAndSaveSubscription();
-
+          const pushId = OneSignal.User.PushSubscription.id;
+          if (pushId) {
+            await updateDoc(doc(db, 'users', user.uid), {
+              oneSignalPlayerId: pushId, // Backup do ID interno
+              pushEnabled: true,
+              lastPushSync: serverTimestamp()
+            });
+          }
         } catch (err) {
-          console.error("Néos OneSignal: Erro na sincronização App.tsx:", err);
+          console.error("Néos Push Sync Error:", err);
         }
       });
     };
