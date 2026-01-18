@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Header from './common/Header';
 import BottomNav from './common/BottomNav';
@@ -53,7 +52,6 @@ const Feed: React.FC = () => {
         if (permission !== 'granted') {
           setShowPushBanner(true);
         } else {
-            // Se já tiver permissão, garantir que o login e ID estão corretos
             if (currentUser) await OneSignal.login(currentUser.uid);
         }
       });
@@ -67,7 +65,6 @@ const Feed: React.FC = () => {
         console.log("Néos: Ativando fluxo de Push...");
         await OneSignal.Notifications.requestPermission();
         
-        // Timer de segurança para propagação do ID após o clique do usuário
         setTimeout(async () => {
           const pushUser = await OneSignal.User;
           const pushId = pushUser?.pushSubscription?.id;
@@ -176,6 +173,17 @@ const Feed: React.FC = () => {
     }
   };
 
+  const handleDeletePulse = async (pulse: any) => {
+    if (window.confirm("Deseja excluir permanentemente este Pulse?")) {
+      try {
+        await deleteDoc(doc(db, 'pulses', pulse.id));
+        setViewingPulseGroup(null);
+      } catch (err) {
+        console.error("Erro ao deletar pulse:", err);
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
       <div className="hidden lg:flex flex-col fixed left-0 top-0 h-screen w-64 border-r dark:border-zinc-800 bg-white dark:bg-black p-6 z-40">
@@ -265,7 +273,7 @@ const Feed: React.FC = () => {
           authorInfo={viewingPulseGroup.author || { id: '', username: 'User', avatar: '' }} 
           initialPulseIndex={0} 
           onClose={() => setViewingPulseGroup(null)} 
-          onDelete={() => setViewingPulseGroup(null)} 
+          onDelete={handleDeletePulse} 
         />
       )}
       <GalleryModal isOpen={isGalleryOpen} onClose={() => setIsGalleryOpen(false)} onImagesSelected={imgs => { setSelectedMedia(imgs); setIsGalleryOpen(false); setIsCreatePostOpen(true); }} />

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
     auth, db, doc, collection, query, orderBy, onSnapshot, serverTimestamp, 
-    updateDoc, addDoc, storage, storageRef, uploadBytes, getDownloadURL 
+    updateDoc, addDoc, storage, storageRef, uploadBytes, getDownloadURL, deleteDoc 
 } from '../../firebase';
 import { useLanguage } from '../../context/LanguageContext';
 import { useCall } from '../../context/CallContext';
@@ -55,6 +55,17 @@ const ChatWindow: React.FC<{ conversationId: string | null; onBack: () => void; 
             },
             timestamp: serverTimestamp()
         });
+    };
+
+    const handleDeleteMessage = async (messageId: string) => {
+        if (!conversationId) return;
+        if (window.confirm("Apagar esta mensagem para você?")) {
+            try {
+                await deleteDoc(doc(db, 'conversations', conversationId, 'messages', messageId));
+            } catch (err) {
+                console.error("Erro ao deletar mensagem:", err);
+            }
+        }
     };
 
     const handleSendText = async (e?: React.FormEvent) => {
@@ -170,8 +181,8 @@ const ChatWindow: React.FC<{ conversationId: string | null; onBack: () => void; 
 
             <div className="flex-grow overflow-y-auto p-4 space-y-4 no-scrollbar bg-zinc-50 dark:bg-zinc-950/30">
                 {messages.map(msg => (
-                    <div key={msg.id} className={`flex ${msg.senderId === currentUser?.uid ? 'justify-end' : 'justify-start'} animate-fade-in`}>
-                        <div className={`max-w-[80%] rounded-[1.5rem] shadow-sm overflow-hidden ${
+                    <div key={msg.id} className={`flex group/msg ${msg.senderId === currentUser?.uid ? 'justify-end' : 'justify-start'} animate-fade-in relative`}>
+                        <div className={`max-w-[80%] rounded-[1.5rem] shadow-sm overflow-hidden relative ${
                             msg.senderId === currentUser?.uid 
                                 ? 'bg-sky-500 text-white rounded-tr-sm' 
                                 : 'bg-white dark:bg-zinc-900 text-black dark:text-white border dark:border-zinc-800 rounded-tl-sm'
@@ -193,6 +204,15 @@ const ChatWindow: React.FC<{ conversationId: string | null; onBack: () => void; 
                                 </a>
                             )}
                             {msg.text && <div className="p-3.5 text-sm font-medium leading-relaxed">{msg.text}</div>}
+                            
+                            {msg.senderId === currentUser?.uid && (
+                                <button 
+                                    onClick={() => handleDeleteMessage(msg.id)}
+                                    className="absolute -left-10 top-1/2 -translate-y-1/2 p-2 opacity-0 group-hover/msg:opacity-100 transition-opacity text-zinc-400 hover:text-red-500"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                            )}
                         </div>
                     </div>
                 ))}
