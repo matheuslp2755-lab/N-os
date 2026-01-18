@@ -26,31 +26,40 @@ const AppContent: React.FC = () => {
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       window.OneSignalDeferred.push(async (OneSignal: any) => {
         try {
-          // CRÍTICO: Vincula o UID do Firebase ao OneSignal para envio via Backend
+          // 1. VINCULAÇÃO CRÍTICA: Diz ao OneSignal que este navegador pertence ao UID do Firebase
+          // Isso permite que o backend envie notificações usando apenas o UID
+          console.log("Néos Push: Vinculando External ID...", user.uid);
           await OneSignal.login(user.uid);
-          console.log("Néos Auth: OneSignal vinculado ao ID:", user.uid);
           
-          // Verifica se o usuário aceitou notificações e forçar opt-in se possível
+          // 2. GARANTIA DE INSCRIÇÃO (v16): Se houver permissão, força o estado de Subscribed
           if (Notification.permission === 'granted') {
             await OneSignal.User.PushSubscription.optIn();
+            console.log("Néos Push: Opt-in realizado com sucesso.");
           }
 
+          // 3. SALVAMENTO DE SEGURANÇA: Registra no banco que este usuário pode receber push
           const pushId = OneSignal.User.PushSubscription.id;
           if (pushId) {
             await updateDoc(doc(db, 'users', user.uid), {
-              oneSignalPlayerId: pushId, // Backup do ID interno
+              oneSignalPlayerId: pushId,
               pushEnabled: true,
               lastPushSync: serverTimestamp()
             });
+            console.log("Néos Push: Subscription ID sincronizado:", pushId);
           }
         } catch (err) {
-          console.error("Néos Push Sync Error:", err);
+          console.error("Néos Push Error:", err);
         }
       });
     };
 
-    const timer = setTimeout(syncOneSignal, 2000);
-    return () => clearTimeout(timer);
+    // Executa a sincronização logo após o login e garante retry
+    const timer = setTimeout(syncOneSignal, 1000);
+    const retryTimer = setTimeout(syncOneSignal, 5000);
+    return () => {
+        clearTimeout(timer);
+        clearTimeout(retryTimer);
+    };
   }, [user]);
 
   useEffect(() => {
