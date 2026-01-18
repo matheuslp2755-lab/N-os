@@ -9,9 +9,9 @@ import axios from 'axios';
 
 admin.initializeApp();
 
-// Credenciais REAIS fornecidas
-const ONESIGNAL_APP_ID = 'c7219360-ec10-4c6e-a599-0255216ec17e';
-const ONESIGNAL_REST_KEY = 'os_v2_app_y4qzgyhmcbgg5jmzajksc3wbpy55kqtxifkehyno3fvildcv3nmghik3flupkwwhqppylcm55euqha7jdf3r55gtgs2ep3cl7kgwozy';
+// Credenciais ATUALIZADAS
+const ONESIGNAL_APP_ID = 'e1dcfeb7-6f34-440a-b65c-f61e2b3253a2';
+const ONESIGNAL_REST_KEY = 'os_v2_app_4hop5n3pgrcavns46ypcwmstujyv4dga5npeinn5ydjjp2ewvmjih7brfkklwx4gvd774vehuhyt5gwzolbtcru56aob6up6zbrrlxq';
 
 /**
  * Gatilho de Nova Mensagem
@@ -62,8 +62,8 @@ export const onNewMessageNotify = functions.firestore
                     pt: "Néos: Nova Mensagem" 
                 },
                 contents: { 
-                    en: `${senderName}: ${messageData.text}`, 
-                    pt: `${senderName}: ${messageData.text}` 
+                    en: `${senderName}: ${messageData.text || 'Mídia enviada'}`, 
+                    pt: `${senderName}: ${messageData.text || 'Mídia enviada'}` 
                 },
                 // Atributos de navegação e visual
                 data: { 
