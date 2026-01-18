@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR" class="dark">
   <head>
@@ -12,12 +13,13 @@
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       OneSignalDeferred.push(async function(OneSignal) {
         await OneSignal.init({
-          appId: "3d5e800f-48e4-4637-8832-ba178d99e3e2",
+          appId: "c7219360-ec10-4c6e-a599-0255216ec17e",
           safari_web_id: "web.onesignal.auto.10444390-e374-4b53-9363-239108f97116",
           notifyButton: { enable: false },
           allowLocalhostAsSecureOrigin: true,
-          serviceWorkerParam: { scope: "/" },
-          serviceWorkerPath: "sw.js"
+          // Garante que o SDK procure o arquivo correto na raiz
+          serviceWorkerPath: "OneSignalSDKWorker.js",
+          serviceWorkerParam: { scope: "/" }
         });
       });
     </script>
@@ -32,15 +34,14 @@
     "firebase/auth": "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js",
     "firebase/firestore": "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js",
     "firebase/storage": "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js",
-    "firebase/messaging": "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js",
     "@google/genai": "https://esm.sh/@google/genai@1.29.1",
     "heic2any": "https://esm.sh/heic2any@0.0.4",
     "axios": "https://esm.sh/axios@^1.13.2",
+    "firebase/": "https://esm.sh/firebase@^12.8.0/",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "react/": "https://esm.sh/react@^19.2.3/",
-    "firebase/": "https://esm.sh/firebase@^12.8.0/",
-    "firebase-functions": "https://esm.sh/firebase-functions@^7.0.3",
-    "firebase-admin": "https://esm.sh/firebase-admin@^13.6.0"
+    "firebase-admin": "https://esm.sh/firebase-admin@^13.6.0",
+    "firebase-functions": "https://esm.sh/firebase-functions@^7.0.3"
   }
 }
 </script>

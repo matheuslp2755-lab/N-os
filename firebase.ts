@@ -1,3 +1,4 @@
+
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { 
@@ -22,7 +23,6 @@ import {
   increment
 } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject, uploadString } from 'firebase/storage';
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBscsAkO_yJYfVVtCBh3rNF8Cm51_HLW54",
@@ -34,22 +34,15 @@ const firebaseConfig = {
   appId: "1:1006477304115:web:79deabb2a1e97951df5e46"
 };
 
-// Chave VAPID pública do seu Firebase Console
-export const VAPID_KEY = "BM6X7BMtwcgtZ8qpVGzFa7TAwm9dJlMyggtTdeTUNmdgSR4nypTcikswMgWlcP0ZWFRQg9ujZ1fy6SfjO1lLar4";
-
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
-const messaging = typeof window !== 'undefined' ? getMessaging(app) : null;
 
 export { 
   auth, 
   db,
   storage,
-  messaging,
-  getToken,
-  onMessage,
   collection,
   query,
   where,

@@ -1,35 +1,12 @@
+
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 
 console.log("Néos: Iniciando aplicação...");
 
-// REGISTRO DO SERVICE WORKER (FCM/PWA)
-// Para evitar erros de origin em sandboxes, construímos a URL baseada na origem atual do navegador.
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    // Construímos a URL completa para garantir que o navegador saiba que é a mesma origem
-    const swUrl = `${window.location.origin}/sw.js`;
-    
-    console.log('Néos: Tentando registrar SW em:', swUrl);
-
-    navigator.serviceWorker.register(swUrl)
-      .then(reg => {
-        console.log('Néos: Service Worker ativo no escopo:', reg.scope);
-      })
-      .catch(err => {
-        // Se a URL absoluta falhar (comum em subdiretórios de sandbox), tentamos o caminho relativo puro
-        console.warn('Néos: Falha na URL absoluta, tentando relativo...', err.message);
-        
-        navigator.serviceWorker.register('sw.js')
-          .then(reg => console.log('Néos: SW registrado via caminho relativo:', reg.scope))
-          .catch(e => {
-            // Se falhar totalmente, provavelmente é uma restrição de segurança do ambiente de preview
-            console.debug('Néos: O registro do Service Worker foi ignorado devido às restrições do ambiente de preview (CORS/Secure Context). Isso é normal em alguns sandboxes.');
-          });
-      });
-  });
-}
+// REGISTRO DE SERVICE WORKER REMOVIDO MANUALMENTE
+// O OneSignal SDK cuidará do registro do OneSignalSDKWorker.js automaticamente.
 
 const container = document.getElementById('root');
 
@@ -52,7 +29,6 @@ if (container) {
   }
 }
 
-// Silenciador de erros de ResizeObserver comuns em layouts complexos
 window.addEventListener('error', (e) => {
   if (e.message && e.message.includes('ResizeObserver')) {
     e.stopImmediatePropagation();

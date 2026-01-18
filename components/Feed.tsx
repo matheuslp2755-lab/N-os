@@ -52,11 +52,14 @@ const Feed: React.FC = () => {
         const permission = await OneSignal.Notifications.permission;
         if (permission !== 'granted') {
           setShowPushBanner(true);
+        } else {
+            // Se já tiver permissão, garantir que o login e ID estão corretos
+            if (currentUser) await OneSignal.login(currentUser.uid);
         }
       });
     };
     checkPushPermission();
-  }, []);
+  }, [currentUser]);
 
   const handleEnablePush = async () => {
     (window as any).OneSignalDeferred.push(async (OneSignal: any) => {
@@ -64,7 +67,7 @@ const Feed: React.FC = () => {
         console.log("Néos: Ativando fluxo de Push...");
         await OneSignal.Notifications.requestPermission();
         
-        // Timer de segurança para propagação do ID
+        // Timer de segurança para propagação do ID após o clique do usuário
         setTimeout(async () => {
           const pushUser = await OneSignal.User;
           const pushId = pushUser?.pushSubscription?.id;
@@ -76,6 +79,7 @@ const Feed: React.FC = () => {
               lastPushSync: serverTimestamp()
             });
             setShowPushBanner(false);
+            console.log("Néos: Notificações ativadas e ID salvo:", pushId);
           }
         }, 2000);
       } catch (err) {
