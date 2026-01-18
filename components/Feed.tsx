@@ -43,37 +43,55 @@ const Feed: React.FC = () => {
 
   const currentUser = auth.currentUser;
 
-  // Verifica se precisa pedir push
+  // Verifica permissão com OneSignalDeferred
   useEffect(() => {
-    const checkPush = async () => {
-      if (typeof window.OneSignal !== 'undefined') {
-        const permission = await window.OneSignal.Notifications.permission;
+    const checkPushPermission = () => {
+      (window as any).OneSignalDeferred = (window as any).OneSignalDeferred || [];
+      (window as any).OneSignalDeferred.push(async (OneSignal: any) => {
+        const permission = await OneSignal.Notifications.permission;
         if (permission !== 'granted') {
           setShowPushBanner(true);
+        } else {
+          // Se já concedido, garante que o ID está no banco
+          const pushUser = await OneSignal.User;
+          const pushId = pushUser?.pushSubscription?.id;
+          if (pushId && currentUser) {
+             await updateDoc(doc(db, 'users', currentUser.uid), {
+                oneSignalPlayerId: pushId,
+                pushEnabled: true
+             });
+          }
         }
-      }
+      });
     };
-    checkPush();
-  }, []);
+    checkPushPermission();
+  }, [currentUser]);
 
   const handleEnablePush = async () => {
-    try {
-      await window.OneSignal.Notifications.requestPermission();
-      const pushUser = await window.OneSignal.User;
-      const pushId = pushUser?.pushSubscription?.id;
-      
-      if (pushId && currentUser) {
-        await updateDoc(doc(db, 'users', currentUser.uid), {
-          oneSignalPlayerId: pushId,
-          pushEnabled: true,
-          lastPushSync: serverTimestamp()
-        });
-        setShowPushBanner(false);
-        alert("Notificações ativadas com sucesso!");
+    (window as any).OneSignalDeferred.push(async (OneSignal: any) => {
+      try {
+        console.log("Néos: Solicitando permissão...");
+        await OneSignal.Notifications.requestPermission();
+        
+        // Pequeno delay para a inscrição processar
+        setTimeout(async () => {
+            const pushUser = await OneSignal.User;
+            const pushId = pushUser?.pushSubscription?.id;
+            
+            if (pushId && currentUser) {
+              await updateDoc(doc(db, 'users', currentUser.uid), {
+                oneSignalPlayerId: pushId,
+                pushEnabled: true,
+                lastPushSync: serverTimestamp()
+              });
+              setShowPushBanner(false);
+              alert("Notificações do Néos ativadas!");
+            }
+        }, 1000);
+      } catch (err) {
+        console.error("Erro ao ativar push:", err);
       }
-    } catch (err) {
-      console.error("Erro ao ativar push:", err);
-    }
+    });
   };
 
   useEffect(() => {
@@ -211,14 +229,14 @@ const Feed: React.FC = () => {
          ) : (
           <div className="container mx-auto max-w-lg py-4 pb-24 px-4">
             {showPushBanner && (
-              <div className="mb-6 p-5 bg-sky-500 rounded-[2rem] text-white flex items-center justify-between shadow-lg shadow-sky-500/20 animate-bounce-subtle">
+              <div className="mb-6 p-5 bg-sky-600 rounded-[2rem] text-white flex items-center justify-between shadow-lg shadow-sky-500/20 animate-bounce-subtle">
                 <div className="flex items-center gap-3">
                   <div className="bg-white/20 p-2 rounded-full">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
                   </div>
-                  <p className="text-xs font-black uppercase tracking-tight">Ative as Notificações Push</p>
+                  <p className="text-xs font-black uppercase tracking-tight">Ative as Notificações Néos</p>
                 </div>
-                <button onClick={handleEnablePush} className="bg-white text-sky-600 px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest active:scale-95 transition-transform">Ativar</button>
+                <button onClick={handleEnablePush} className="bg-white text-sky-700 px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest active:scale-95 transition-transform">Ativar</button>
               </div>
             )}
 

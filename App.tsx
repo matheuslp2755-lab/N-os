@@ -10,7 +10,7 @@ import CallUI from './components/call/CallUI';
 
 declare global {
   interface Window {
-    OneSignal: any;
+    OneSignalDeferred: any[];
   }
 }
 
@@ -19,35 +19,29 @@ const AppContent: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [authPage, setAuthPage] = useState<'login' | 'signup'>('login');
 
-  // INICIALIZAÇÃO SILENCIOSA DO ONESIGNAL
+  // SINCRONIZAÇÃO AUTOMÁTICA ONESIGNAL
   useEffect(() => {
-    const initOneSignal = async () => {
-      try {
-        const OneSignal = window.OneSignal || [];
-        await OneSignal.init({
-          appId: "c7219360-ec10-4c6e-a599-0255216ec17e",
-          safari_web_id: "web.onesignal.auto.10444390-e374-4b53-9363-239108f97116",
-          notifyButton: { enable: false },
-          allowLocalhostAsSecureOrigin: true,
-        });
+    if (!user) return;
 
-        // Tenta sincronizar o ID se já houver permissão
-        if (user) {
-          const pushUser = await OneSignal.User;
-          const pushId = pushUser?.pushSubscription?.id;
-          if (pushId) {
-            await updateDoc(doc(db, 'users', user.uid), {
-              oneSignalPlayerId: pushId,
-              pushEnabled: true
-            });
-          }
+    const syncPushToken = () => {
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      window.OneSignalDeferred.push(async (OneSignal: any) => {
+        // Se já tivermos permissão, pegamos o ID e salvamos no banco
+        const pushUser = await OneSignal.User;
+        const pushId = pushUser?.pushSubscription?.id;
+        
+        if (pushId && user) {
+          console.log("Néos: Sincronizando Push ID:", pushId);
+          await updateDoc(doc(db, 'users', user.uid), {
+            oneSignalPlayerId: pushId,
+            pushEnabled: true,
+            lastPushSync: serverTimestamp()
+          });
         }
-      } catch (err) {
-        console.warn("OneSignal Init Error:", err);
-      }
+      });
     };
 
-    initOneSignal();
+    syncPushToken();
   }, [user]);
 
   useEffect(() => {
