@@ -30,9 +30,13 @@ const AppContent: React.FC = () => {
           await OneSignal.login(user.uid);
           console.log("Néos OneSignal: Usuário identificado:", user.uid);
           
+          // Se já tem permissão nativa, garantimos o optIn da subscription
+          if (Notification.permission === 'granted') {
+            await OneSignal.User.PushSubscription.optIn();
+          }
+
           // Captura o Subscription ID para persistência no Firestore
-          const pushUser = await OneSignal.User;
-          const pushId = pushUser?.pushSubscription?.id;
+          const pushId = OneSignal.User.PushSubscription.id;
           
           if (pushId) {
             console.log("Néos OneSignal: Subscription ID ativo:", pushId);
@@ -49,8 +53,8 @@ const AppContent: React.FC = () => {
       });
     };
 
-    // Pequeno atraso para garantir inicialização do SDK
-    const timer = setTimeout(syncOneSignal, 2000);
+    // Pequeno atraso para garantir inicialização do SDK e disponibilidade do objeto OneSignal.User
+    const timer = setTimeout(syncOneSignal, 3000);
     return () => clearTimeout(timer);
   }, [user]);
 
