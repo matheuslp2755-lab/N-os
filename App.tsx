@@ -26,33 +26,30 @@ const AppContent: React.FC = () => {
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       window.OneSignalDeferred.push(async (OneSignal: any) => {
         try {
-          // Garante que o usuário está "Logado" no OneSignal com o ID do Firebase
+          // Vincula o UID do Firebase ao OneSignal como External ID
           await OneSignal.login(user.uid);
-          console.log("Néos OneSignal: User Login executado para", user.uid);
+          console.log("Néos OneSignal: Usuário identificado:", user.uid);
           
-          // Força a verificação de inscrição
+          // Captura o Subscription ID para persistência no Firestore
           const pushUser = await OneSignal.User;
           const pushId = pushUser?.pushSubscription?.id;
           
           if (pushId) {
-            console.log("Néos OneSignal: ID de Inscrição Ativo:", pushId);
+            console.log("Néos OneSignal: Subscription ID ativo:", pushId);
             const userRef = doc(db, 'users', user.uid);
             await updateDoc(userRef, {
               oneSignalPlayerId: pushId,
               pushEnabled: true,
               lastPushSync: serverTimestamp()
             });
-          } else {
-            console.log("Néos OneSignal: Usuário ainda não possui Subscription ID. Solicitando permissão...");
-            await OneSignal.Notifications.requestPermission();
           }
         } catch (err) {
-          console.error("Néos OneSignal: Erro de sincronização", err);
+          console.error("Néos OneSignal: Erro durante a identificação:", err);
         }
       });
     };
 
-    // Pequeno delay para garantir que o documento do usuário exista
+    // Pequeno atraso para garantir inicialização do SDK
     const timer = setTimeout(syncOneSignal, 2000);
     return () => clearTimeout(timer);
   }, [user]);

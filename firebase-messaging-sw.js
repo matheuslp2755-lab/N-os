@@ -1,1 +1,1 @@
-// FCM desativado. Este arquivo não é mais utilizado pelo Néos.
+// Arquivo desativado permanentemente para evitar conflitos com OneSignal.

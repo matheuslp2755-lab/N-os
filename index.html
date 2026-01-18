@@ -7,6 +7,7 @@
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#000000" />
     
+    <!-- OneSignal Web SDK v16 -->
     <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
     <script>
       window.OneSignalDeferred = window.OneSignalDeferred || [];
@@ -14,23 +15,19 @@
         await OneSignal.init({
           appId: "e1dcfeb7-6f34-440a-b65c-f61e2b3253a2",
           safari_web_id: "web.onesignal.auto.10444390-e374-4b53-9363-239108f97116",
-          notifyButton: { enable: false },
-          allowLocalhostAsSecureOrigin: true,
-          serviceWorkerPath: "OneSignalSDKWorker.js",
-          serviceWorkerParam: { scope: "/" },
-          promptOptions: {
-            slidedown: {
-              enabled: true,
-              autoPrompt: true,
-              timeDelay: 5,
-              pageViews: 1
-            }
-          }
+          notifyButton: { 
+            enable: false 
+          },
+          allowLocalhostAsSecureOrigin: true
         });
-        // Força o registro do usuário assim que o SDK carrega
-        OneSignal.Notifications.requestPermission();
+        
+        // Debug para confirmar se o registro ocorreu
+        OneSignal.Notifications.addEventListener("permissionChange", (permission) => {
+          console.log("Néos Push: Nova permissão:", permission);
+        });
       });
     </script>
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="importmap">
 {
