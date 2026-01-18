@@ -1,0 +1,9 @@
+{
+  "requestFramePermissions": [
+    "microphone",
+    "camera",
+    "geolocation"
+  ],
+  "name": "Copy of Néos 5",
+  "description": "Rede Social Sinta a Vibe"
+}
