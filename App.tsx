@@ -22,44 +22,55 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     if (!user) return;
 
+    // Sincronização Robusta com OneSignal
     const syncOneSignal = () => {
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       window.OneSignalDeferred.push(async (OneSignal: any) => {
         try {
-          // 1. VINCULAÇÃO CRÍTICA: Diz ao OneSignal que este navegador pertence ao UID do Firebase
-          // Isso permite que o backend envie notificações usando apenas o UID
-          console.log("Néos Push: Vinculando External ID...", user.uid);
+          console.log("Néos Push: Iniciando vinculação para o usuário:", user.uid);
+          
+          // 1. Define o External ID (Link fundamental entre Firebase e OneSignal)
           await OneSignal.login(user.uid);
           
-          // 2. GARANTIA DE INSCRIÇÃO (v16): Se houver permissão, força o estado de Subscribed
+          // 2. Força o Opt-In se a permissão já foi concedida no navegador
           if (Notification.permission === 'granted') {
             await OneSignal.User.PushSubscription.optIn();
-            console.log("Néos Push: Opt-in realizado com sucesso.");
           }
 
-          // 3. SALVAMENTO DE SEGURANÇA: Registra no banco que este usuário pode receber push
-          const pushId = OneSignal.User.PushSubscription.id;
-          if (pushId) {
-            await updateDoc(doc(db, 'users', user.uid), {
-              oneSignalPlayerId: pushId,
-              pushEnabled: true,
-              lastPushSync: serverTimestamp()
-            });
-            console.log("Néos Push: Subscription ID sincronizado:", pushId);
-          }
+          // 3. Loop de verificação: O SDK do OneSignal às vezes demora para gerar o ID de assinatura
+          let attempts = 0;
+          const verifySubscription = async () => {
+            const subscriptionId = OneSignal.User.PushSubscription.id;
+            const isOptedIn = OneSignal.User.PushSubscription.optedIn;
+
+            if (subscriptionId && isOptedIn) {
+              console.log("Néos Push: Dispositivo vinculado com sucesso. Subscription ID:", subscriptionId);
+              
+              // Atualiza o Firestore com o ID real para backup e monitoramento
+              const userRef = doc(db, 'users', user.uid);
+              await updateDoc(userRef, {
+                oneSignalPlayerId: subscriptionId,
+                pushEnabled: true,
+                lastPushSync: serverTimestamp()
+              });
+            } else if (attempts < 8) {
+              attempts++;
+              console.log(`Néos Push: Aguardando registro do dispositivo... tentativa ${attempts}`);
+              setTimeout(verifySubscription, 2000);
+            }
+          };
+
+          verifySubscription();
+
         } catch (err) {
-          console.error("Néos Push Error:", err);
+          console.error("Néos OneSignal Auth Error:", err);
         }
       });
     };
 
-    // Executa a sincronização logo após o login e garante retry
-    const timer = setTimeout(syncOneSignal, 1000);
-    const retryTimer = setTimeout(syncOneSignal, 5000);
-    return () => {
-        clearTimeout(timer);
-        clearTimeout(retryTimer);
-    };
+    // Pequeno delay para garantir que o Firebase Auth esteja estável
+    const timer = setTimeout(syncOneSignal, 2000);
+    return () => clearTimeout(timer);
   }, [user]);
 
   useEffect(() => {
