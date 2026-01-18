@@ -39,6 +39,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [isAudioEnabled, setIsAudioEnabled] = useState(true);
     const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
     const [callTimeoutReached, setCallTimeoutReached] = useState(false);
+    const [callStartTime, setCallStartTime] = useState<number | null>(null);
     
     const pc = useRef<RTCPeerConnection | null>(null);
     const signalingUnsub = useRef<(() => void) | null>(null);
@@ -52,6 +53,31 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 stream.removeTrack(track);
             });
         }
+    };
+
+    const logCallToChat = async (call: ActiveCall, durationSeconds: number) => {
+        const conversationId = [call.caller.id, call.receiver.id].sort().join('_');
+        const durationFormatted = durationSeconds < 60 
+            ? `${durationSeconds}s` 
+            : `${Math.floor(durationSeconds / 60)}m ${durationSeconds % 60}s`;
+        
+        const label = call.isVideo ? 'Vídeo' : 'Voz';
+        const msgText = `Chamada de ${label} encerrada • ${durationFormatted}`;
+
+        try {
+            await addDoc(collection(db, 'conversations', conversationId, 'messages'), {
+                senderId: 'system_call_log',
+                text: msgText,
+                timestamp: serverTimestamp(),
+                type: 'call_log',
+                isVideo: call.isVideo,
+                duration: durationSeconds
+            });
+            await updateDoc(doc(db, 'conversations', conversationId), {
+                lastMessage: { text: `📞 ${msgText}`, senderId: 'system', timestamp: serverTimestamp() },
+                timestamp: serverTimestamp()
+            });
+        } catch (e) { console.error("Erro ao logar chamada:", e); }
     };
 
     const resetCallState = useCallback(() => {
@@ -71,6 +97,12 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
             window.clearTimeout(timeoutRef.current);
             timeoutRef.current = null;
         }
+        
+        if (callStartTime && activeCall && activeCall.status === 'connected') {
+            const duration = Math.floor((Date.now() - callStartTime) / 1000);
+            logCallToChat(activeCall, duration);
+        }
+
         stopStream(localStream);
         setLocalStream(null);
         setRemoteStream(null);
@@ -79,9 +111,9 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsVideoEnabled(true);
         setIsAudioEnabled(true);
         setCallTimeoutReached(false);
-    }, [localStream]);
+        setCallStartTime(null);
+    }, [localStream, callStartTime, activeCall]);
 
-    // Lógica de Timeout de 15 segundos
     useEffect(() => {
         if (activeCall?.status === 'ringing-outgoing') {
             setCallTimeoutReached(false);
@@ -91,7 +123,6 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     if (activeCall.callId) {
                         await updateDoc(doc(db, 'calls', activeCall.callId), { status: 'ended' });
                     }
-                    // Mantemos os dados do activeCall apenas para o UI de retry, mas paramos o resto
                     if (pc.current) {
                         pc.current.close();
                         pc.current = null;
@@ -99,7 +130,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     stopStream(localStream);
                     setLocalStream(null);
                 }
-            }, 15000); // 15 Segundos
+            }, 15000);
         }
         return () => {
             if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
@@ -119,6 +150,10 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 return;
             }
 
+            if (data.status === 'connected' && !callStartTime) {
+                setCallStartTime(Date.now());
+            }
+
             if (data.answer && pc.current && !pc.current.currentRemoteDescription) {
                 if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
                 const answerDescription = new RTCSessionDescription(data.answer);
@@ -129,7 +164,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         signalingUnsub.current = unsubscribe;
         return () => unsubscribe();
-    }, [activeCall?.callId, resetCallState, callTimeoutReached]);
+    }, [activeCall?.callId, resetCallState, callTimeoutReached, callStartTime]);
 
     useEffect(() => {
         if (!activeCall?.callId || !pc.current) return;
@@ -260,6 +295,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
 
             setActiveCall(prev => prev ? { ...prev, status: 'connected' } : null);
+            setCallStartTime(Date.now());
         } catch (err) {
             console.error(err);
             resetCallState();

@@ -59,7 +59,7 @@ const ChatWindow: React.FC<{ conversationId: string | null; onBack: () => void; 
 
     const handleDeleteMessage = async (messageId: string) => {
         if (!conversationId) return;
-        if (window.confirm("Apagar esta mensagem para você?")) {
+        if (window.confirm("Apagar esta mensagem permanentemente?")) {
             try {
                 await deleteDoc(doc(db, 'conversations', conversationId, 'messages', messageId));
             } catch (err) {
@@ -180,42 +180,59 @@ const ChatWindow: React.FC<{ conversationId: string | null; onBack: () => void; 
             </header>
 
             <div className="flex-grow overflow-y-auto p-4 space-y-4 no-scrollbar bg-zinc-50 dark:bg-zinc-950/30">
-                {messages.map(msg => (
-                    <div key={msg.id} className={`flex group/msg ${msg.senderId === currentUser?.uid ? 'justify-end' : 'justify-start'} animate-fade-in relative`}>
-                        <div className={`max-w-[80%] rounded-[1.5rem] shadow-sm overflow-hidden relative ${
-                            msg.senderId === currentUser?.uid 
-                                ? 'bg-sky-500 text-white rounded-tr-sm' 
-                                : 'bg-white dark:bg-zinc-900 text-black dark:text-white border dark:border-zinc-800 rounded-tl-sm'
-                        }`}>
-                            {msg.mediaType === 'image' && <img src={msg.mediaUrl} className="w-full max-h-80 object-cover cursor-pointer" onClick={() => window.open(msg.mediaUrl)} />}
-                            {msg.mediaType === 'video' && <video src={msg.mediaUrl} controls className="w-full max-h-80 object-cover" />}
-                            {msg.mediaType === 'audio' && (
-                                <div className="p-3 flex items-center gap-3 min-w-[200px]">
-                                    <audio src={msg.mediaUrl} controls className="h-8 w-full accent-white" />
-                                </div>
-                            )}
-                            {msg.mediaType === 'location' && (
-                                <a href={`https://www.google.com/maps?q=${msg.location.lat},${msg.location.lng}`} target="_blank" rel="noopener" className="p-4 flex flex-col gap-2 hover:bg-black/5 transition-colors">
-                                    <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-widest">
-                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" /></svg>
-                                        Minha Localização
+                {messages.map(msg => {
+                    const isSystem = msg.senderId === 'system_call_log';
+                    
+                    if (isSystem) {
+                        return (
+                            <div key={msg.id} className="flex justify-center my-4 animate-fade-in">
+                                <div className="bg-zinc-100 dark:bg-zinc-900/50 px-4 py-2 rounded-2xl border dark:border-zinc-800 flex items-center gap-3">
+                                    <div className={`p-1.5 rounded-full ${msg.isVideo ? 'bg-indigo-500/10 text-indigo-500' : 'bg-sky-500/10 text-sky-500'}`}>
+                                        {msg.isVideo ? <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg> : <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>}
                                     </div>
-                                    <div className="h-24 bg-zinc-100 dark:bg-zinc-800 rounded-xl flex items-center justify-center text-[10px] uppercase font-black text-zinc-500">Ver no Mapa</div>
-                                </a>
-                            )}
-                            {msg.text && <div className="p-3.5 text-sm font-medium leading-relaxed">{msg.text}</div>}
-                            
-                            {msg.senderId === currentUser?.uid && (
-                                <button 
-                                    onClick={() => handleDeleteMessage(msg.id)}
-                                    className="absolute -left-10 top-1/2 -translate-y-1/2 p-2 opacity-0 group-hover/msg:opacity-100 transition-opacity text-zinc-400 hover:text-red-500"
-                                >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                </button>
-                            )}
+                                    <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{msg.text}</span>
+                                </div>
+                            </div>
+                        );
+                    }
+
+                    return (
+                        <div key={msg.id} className={`flex group/msg ${msg.senderId === currentUser?.uid ? 'justify-end' : 'justify-start'} animate-fade-in relative`}>
+                            <div className={`max-w-[80%] rounded-[1.5rem] shadow-sm overflow-hidden relative ${
+                                msg.senderId === currentUser?.uid 
+                                    ? 'bg-sky-500 text-white rounded-tr-sm' 
+                                    : 'bg-white dark:bg-zinc-900 text-black dark:text-white border dark:border-zinc-800 rounded-tl-sm'
+                            }`}>
+                                {msg.mediaType === 'image' && <img src={msg.mediaUrl} className="w-full max-h-80 object-cover cursor-pointer" onClick={() => window.open(msg.mediaUrl)} />}
+                                {msg.mediaType === 'video' && <video src={msg.mediaUrl} controls className="w-full max-h-80 object-cover" />}
+                                {msg.mediaType === 'audio' && (
+                                    <div className="p-3 flex items-center gap-3 min-w-[200px]">
+                                        <audio src={msg.mediaUrl} controls className="h-8 w-full accent-white" />
+                                    </div>
+                                )}
+                                {msg.mediaType === 'location' && (
+                                    <a href={`https://www.google.com/maps?q=${msg.location.lat},${msg.location.lng}`} target="_blank" rel="noopener" className="p-4 flex flex-col gap-2 hover:bg-black/5 transition-colors">
+                                        <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-widest">
+                                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" /></svg>
+                                            Minha Localização
+                                        </div>
+                                        <div className="h-24 bg-zinc-100 dark:bg-zinc-800 rounded-xl flex items-center justify-center text-[10px] uppercase font-black text-zinc-500">Ver no Mapa</div>
+                                    </a>
+                                )}
+                                {msg.text && <div className="p-3.5 text-sm font-medium leading-relaxed">{msg.text}</div>}
+                                
+                                {msg.senderId === currentUser?.uid && (
+                                    <button 
+                                        onClick={() => handleDeleteMessage(msg.id)}
+                                        className="absolute -left-10 top-1/2 -translate-y-1/2 p-2 opacity-0 group-hover/msg:opacity-100 transition-opacity text-zinc-400 hover:text-red-500"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                    </button>
+                                )}
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
                 <div ref={scrollRef} />
             </div>
 
