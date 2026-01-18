@@ -1,6 +1,6 @@
 import React, { useState, useEffect, StrictMode } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth, db, doc, updateDoc, serverTimestamp, getDoc } from './firebase';
+import { auth, db, doc, updateDoc, serverTimestamp } from './firebase';
 import Login from './components/Login';
 import SignUp from './context/SignUp';
 import Feed from './components/Feed';
@@ -26,35 +26,45 @@ const AppContent: React.FC = () => {
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       window.OneSignalDeferred.push(async (OneSignal: any) => {
         try {
-          // Vincula o UID do Firebase ao OneSignal como External ID
+          // 1. Identifica o usuário no OneSignal
           await OneSignal.login(user.uid);
-          console.log("Néos OneSignal: Usuário identificado:", user.uid);
+          console.log("Néos OneSignal: Usuário logado:", user.uid);
           
-          // Se já tem permissão nativa, garantimos o optIn da subscription
+          // 2. Se tiver permissão, garante o opt-in da subscrição
           if (Notification.permission === 'granted') {
+            console.log("Néos OneSignal: Forçando Opt-In...");
             await OneSignal.User.PushSubscription.optIn();
+          } else {
+            console.log("Néos OneSignal: Permissão de notificação não concedida ainda.");
           }
 
-          // Captura o Subscription ID para persistência no Firestore
-          const pushId = OneSignal.User.PushSubscription.id;
-          
-          if (pushId) {
-            console.log("Néos OneSignal: Subscription ID ativo:", pushId);
-            const userRef = doc(db, 'users', user.uid);
-            await updateDoc(userRef, {
-              oneSignalPlayerId: pushId,
-              pushEnabled: true,
-              lastPushSync: serverTimestamp()
-            });
-          }
+          // 3. Captura e salva o ID de subscrição
+          const checkSubscription = async () => {
+              const pushId = OneSignal.User.PushSubscription.id;
+              if (pushId) {
+                console.log("Néos OneSignal: Registrando ID no Firestore:", pushId);
+                const userRef = doc(db, 'users', user.uid);
+                await updateDoc(userRef, {
+                  oneSignalPlayerId: pushId,
+                  pushEnabled: true,
+                  lastPushSync: serverTimestamp()
+                });
+              } else {
+                // Se o ID ainda não existe, tenta novamente em breve
+                console.log("Néos OneSignal: ID ainda pendente, re-tentando em 3s...");
+                setTimeout(checkSubscription, 3000);
+              }
+          };
+
+          checkSubscription();
+
         } catch (err) {
-          console.error("Néos OneSignal: Erro durante a identificação:", err);
+          console.error("Néos OneSignal: Erro crítico na sincronização:", err);
         }
       });
     };
 
-    // Pequeno atraso para garantir inicialização do SDK e disponibilidade do objeto OneSignal.User
-    const timer = setTimeout(syncOneSignal, 3000);
+    const timer = setTimeout(syncOneSignal, 2000);
     return () => clearTimeout(timer);
   }, [user]);
 

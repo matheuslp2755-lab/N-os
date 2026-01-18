@@ -18,35 +18,27 @@
           notifyButton: { 
             enable: false 
           },
-          allowLocalhostAsSecureOrigin: true
+          allowLocalhostAsSecureOrigin: true,
+          // Garante que o SDK tente registrar o worker na raiz
+          serviceWorkerPath: "OneSignalSDKWorker.js"
         });
 
-        // Lógica de Ativação Forçada de Subscription v16
-        const checkAndOptIn = async () => {
-          const permission = Notification.permission;
-          console.log("Néos Push: Status da permissão nativa:", permission);
-          
-          if (permission === "granted") {
+        // Tenta realizar o Opt-In se a permissão já existir
+        if (Notification.permission === "granted") {
             try {
-              console.log("Néos Push: Permissão já concedida. Forçando Opt-In da Subscription...");
-              // No v16, o opt-in é o que cria o registro efetivo na Audience como Subscribed
-              await OneSignal.User.PushSubscription.optIn();
-              console.log("Néos Push: Opt-In concluído com sucesso.");
-            } catch (err) {
-              console.error("Néos Push: Erro ao realizar Opt-In:", err);
+                console.log("Néos OneSignal: Permissão detectada, forçando ativação da assinatura...");
+                await OneSignal.User.PushSubscription.optIn();
+            } catch (e) {
+                console.error("Néos OneSignal: Falha no Opt-In automático", e);
             }
-          }
-        };
+        }
 
-        // Executa na carga
-        checkAndOptIn();
-
-        // Escuta mudanças de permissão para agir imediatamente se o usuário aceitar o prompt
-        OneSignal.Notifications.addEventListener("permissionChange", (permission) => {
-          console.log("Néos Push: Mudança de permissão detectada:", permission);
-          if (permission) {
-             OneSignal.User.PushSubscription.optIn();
-          }
+        // Monitora mudanças para garantir que o usuário apareça no painel
+        OneSignal.User.PushSubscription.addEventListener("change", (event) => {
+            console.log("Néos OneSignal: Mudança na assinatura detectada:", event.current);
+            if (event.current.id) {
+                console.log("Néos OneSignal: Subscription ID gerado com sucesso:", event.current.id);
+            }
         });
       });
     </script>
