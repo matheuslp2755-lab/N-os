@@ -26,40 +26,39 @@ const AppContent: React.FC = () => {
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       window.OneSignalDeferred.push(async (OneSignal: any) => {
         try {
-          // 1. Identifica o usuário no OneSignal
+          // 1. Login do Usuário (External ID)
           await OneSignal.login(user.uid);
-          console.log("Néos OneSignal: Usuário logado:", user.uid);
+          console.log("Néos OneSignal: Usuário identificado:", user.uid);
           
-          // 2. Se tiver permissão, garante o opt-in da subscrição
+          // 2. Se permissão concedida, garantir optIn na v16
           if (Notification.permission === 'granted') {
-            console.log("Néos OneSignal: Forçando Opt-In...");
             await OneSignal.User.PushSubscription.optIn();
-          } else {
-            console.log("Néos OneSignal: Permissão de notificação não concedida ainda.");
           }
 
-          // 3. Captura e salva o ID de subscrição
-          const checkSubscription = async () => {
-              const pushId = OneSignal.User.PushSubscription.id;
-              if (pushId) {
-                console.log("Néos OneSignal: Registrando ID no Firestore:", pushId);
-                const userRef = doc(db, 'users', user.uid);
-                await updateDoc(userRef, {
-                  oneSignalPlayerId: pushId,
-                  pushEnabled: true,
-                  lastPushSync: serverTimestamp()
-                });
-              } else {
-                // Se o ID ainda não existe, tenta novamente em breve
-                console.log("Néos OneSignal: ID ainda pendente, re-tentando em 3s...");
-                setTimeout(checkSubscription, 3000);
-              }
+          // 3. Loop de verificação para capturar o ID (ele pode levar segundos para ser gerado)
+          let attempts = 0;
+          const checkAndSaveSubscription = async () => {
+            const pushId = OneSignal.User.PushSubscription.id;
+            
+            if (pushId) {
+              console.log("Néos OneSignal: Salvando Subscription ID no Firestore:", pushId);
+              const userRef = doc(db, 'users', user.uid);
+              await updateDoc(userRef, {
+                oneSignalPlayerId: pushId,
+                pushEnabled: true,
+                lastPushSync: serverTimestamp()
+              });
+            } else if (attempts < 5) {
+              attempts++;
+              console.log(`Néos OneSignal: Aguardando ID... tentativa ${attempts}`);
+              setTimeout(checkAndSaveSubscription, 3000);
+            }
           };
 
-          checkSubscription();
+          checkAndSaveSubscription();
 
         } catch (err) {
-          console.error("Néos OneSignal: Erro crítico na sincronização:", err);
+          console.error("Néos OneSignal: Erro na sincronização App.tsx:", err);
         }
       });
     };

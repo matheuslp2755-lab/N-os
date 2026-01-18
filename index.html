@@ -19,26 +19,45 @@
             enable: false 
           },
           allowLocalhostAsSecureOrigin: true,
-          // Garante que o SDK tente registrar o worker na raiz
           serviceWorkerPath: "OneSignalSDKWorker.js"
         });
 
-        // Tenta realizar o Opt-In se a permissão já existir
-        if (Notification.permission === "granted") {
-            try {
-                console.log("Néos OneSignal: Permissão detectada, forçando ativação da assinatura...");
-                await OneSignal.User.PushSubscription.optIn();
-            } catch (e) {
-                console.error("Néos OneSignal: Falha no Opt-In automático", e);
-            }
-        }
+        // FUNÇÃO DE ATIVAÇÃO EXPLÍCITA (Essencial para v16)
+        const activatePushSubscription = async () => {
+          try {
+            const permission = Notification.permission;
+            console.log("Néos OneSignal: Verificando permissão nativa:", permission);
 
-        // Monitora mudanças para garantir que o usuário apareça no painel
-        OneSignal.User.PushSubscription.addEventListener("change", (event) => {
-            console.log("Néos OneSignal: Mudança na assinatura detectada:", event.current);
-            if (event.current.id) {
-                console.log("Néos OneSignal: Subscription ID gerado com sucesso:", event.current.id);
+            if (permission === "granted") {
+              console.log("Néos OneSignal: Permissão concedida. Executando optIn()...");
+              // No v16, o optIn() é obrigatório para gerar o Subscription ID efetivo
+              await OneSignal.User.PushSubscription.optIn();
+              
+              const subscriptionId = OneSignal.User.PushSubscription.id;
+              if (subscriptionId) {
+                console.log("Néos OneSignal: Assinatura ativa com sucesso:", subscriptionId);
+              }
             }
+          } catch (err) {
+            console.error("Néos OneSignal: Erro ao ativar assinatura:", err);
+          }
+        };
+
+        // 1. Tenta ativar imediatamente se a permissão já existe (usuário voltando)
+        activatePushSubscription();
+
+        // 2. Escuta a mudança de permissão (usuário aceitando o prompt agora)
+        OneSignal.Notifications.addEventListener("permissionChange", async (permission) => {
+          console.log("Néos OneSignal: Mudança de permissão detectada:", permission);
+          if (permission) {
+            await OneSignal.User.PushSubscription.optIn();
+            console.log("Néos OneSignal: Opt-In realizado após permissão concedida.");
+          }
+        });
+
+        // 3. Listener para mudanças no estado da assinatura
+        OneSignal.User.PushSubscription.addEventListener("change", (event) => {
+          console.log("Néos OneSignal: Estado da assinatura mudou:", event.current);
         });
       });
     </script>
