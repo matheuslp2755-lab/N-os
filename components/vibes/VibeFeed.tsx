@@ -25,6 +25,7 @@ type VibeType = {
 const VibeItem: React.FC<{ vibe: VibeType; isActive: boolean }> = ({ vibe, isActive }) => {
     const { isGlobalMuted, setGlobalMuted } = useCall();
     const videoRef = useRef<HTMLVideoElement>(null);
+    const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isLoaded, setIsLoaded] = useState(false);
     const [showComments, setShowComments] = useState(false);
     const [comments, setComments] = useState<any[]>([]);
@@ -125,42 +126,45 @@ const VibeItem: React.FC<{ vibe: VibeType; isActive: boolean }> = ({ vibe, isAct
     const handleDownload = async () => {
         if (isDownloading) return;
         setIsDownloading(true);
+
         try {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            if (!ctx) return;
+            const canvas = canvasRef.current;
+            const ctx = canvas?.getContext('2d');
+            if (!canvas || !ctx) return;
+
+            const addWatermark = (context: CanvasRenderingContext2D, width: number, height: number) => {
+                context.font = "bold 24px sans-serif";
+                context.fillStyle = "rgba(255, 255, 255, 0.8)";
+                context.shadowColor = "rgba(0, 0, 0, 0.5)";
+                context.shadowBlur = 4;
+                
+                // Top Left
+                context.fillText("Powered by Néos", 20, 40);
+                
+                // Bottom Right
+                const text = "Powered by Néos";
+                const metrics = context.measureText(text);
+                context.fillText(text, width - metrics.width - 20, height - 20);
+            };
 
             if (vibe.mediaType === 'image') {
                 const img = new Image();
                 img.crossOrigin = "anonymous";
                 img.src = vibe.videoUrl;
                 await new Promise((res) => (img.onload = res));
-
                 canvas.width = img.width;
                 canvas.height = img.height;
                 ctx.drawImage(img, 0, 0);
-
-                // Add Watermarks
-                ctx.font = `bold ${canvas.width * 0.04}px sans-serif`;
-                ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
-                ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
-                ctx.shadowBlur = 4;
+                addWatermark(ctx, canvas.width, canvas.height);
                 
-                // Top Left
-                ctx.fillText("Powered by Néos", canvas.width * 0.05, canvas.height * 0.08);
-                // Bottom Right
-                const textWidth = ctx.measureText("Powered by Néos").width;
-                ctx.fillText("Powered by Néos", canvas.width - textWidth - (canvas.width * 0.05), canvas.height * 0.95);
-
                 const link = document.createElement('a');
                 link.download = `neos-vibe-${Date.now()}.jpg`;
                 link.href = canvas.toDataURL('image/jpeg', 0.9);
                 link.click();
             } else {
-                // For videos, since processing raw video frames on client with watermark is heavy,
-                // we trigger a direct download of the MP4 for now.
-                // In a production app, this would be done via server-side transcoding (ffmpeg).
-                // But following the request for a simple save:
+                // For videos, we download the raw source since client-side video watermarking 
+                // requires complex libraries like ffmpeg.js which are too heavy.
+                // However, as a visual solution, we'll fetch and trigger download.
                 const response = await fetch(vibe.videoUrl);
                 const blob = await response.blob();
                 const url = window.URL.createObjectURL(blob);
@@ -184,6 +188,8 @@ const VibeItem: React.FC<{ vibe: VibeType; isActive: boolean }> = ({ vibe, isAct
                 <video ref={videoRef} src={vibe.videoUrl} className="w-full h-full object-cover" loop playsInline muted={isGlobalMuted} onLoadedData={() => setIsLoaded(true)} />
             )}
 
+            <canvas ref={canvasRef} className="hidden" />
+
             <div className="absolute right-4 bottom-24 flex flex-col gap-6 items-center z-30">
                 <img src={vibe.user?.avatar} className="w-12 h-12 rounded-full border-2 border-white object-cover shadow-lg" alt="User" />
                 
@@ -197,15 +203,15 @@ const VibeItem: React.FC<{ vibe: VibeType; isActive: boolean }> = ({ vibe, isAct
                     <span className="text-white text-xs font-black drop-shadow-md">{vibe.commentsCount}</span>
                 </button>
 
-                <button onClick={handleDownload} disabled={isDownloading} className="flex flex-col items-center transition-transform active:scale-90 disabled:opacity-50">
-                    <div className="p-2 bg-black/20 backdrop-blur-md rounded-full text-white shadow-lg border border-white/10">
+                <button onClick={handleDownload} disabled={isDownloading} className="flex flex-col items-center group transition-all active:scale-95 disabled:opacity-50">
+                    <div className="p-3 bg-white/10 backdrop-blur-md rounded-full text-white shadow-xl border border-white/20 group-hover:bg-white/20 transition-colors">
                         {isDownloading ? (
                              <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                         ) : (
-                            <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                            <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                         )}
                     </div>
-                    <span className="text-white text-[10px] font-black mt-1 uppercase tracking-tighter drop-shadow-md">Salvar</span>
+                    <span className="text-white text-[10px] font-black mt-2 uppercase tracking-widest drop-shadow-lg">Salvar</span>
                 </button>
 
                 <button onClick={() => setGlobalMuted(!isGlobalMuted)} className="p-2 bg-black/20 backdrop-blur-md rounded-full text-white">
