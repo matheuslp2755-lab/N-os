@@ -7,6 +7,7 @@ interface ParadiseCameraModalProps {
 }
 
 type VibeEffect = 'memory' | 'analog2k' | 'filmsad' | 'vhs' | 'noir' | 'retro';
+type LensDistance = '20cm' | '30cm' | '50cm' | 'auto';
 
 interface VibeConfig {
     id: VibeEffect;
@@ -28,26 +29,39 @@ const VIBES: VibeConfig[] = [
 const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClose }) => {
     const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
     const [activeVibe, setActiveVibe] = useState<VibeEffect>('memory');
+    const [activeLens, setActiveLens] = useState<LensDistance>('auto');
     const [capturedImage, setCapturedImage] = useState<string | null>(null);
     const [showAdjustments, setShowAdjustments] = useState(false);
     const [showFlash, setShowFlash] = useState(false);
     
-    // Sliders de Estética (Estados que disparam re-render do canvas)
+    // Sliders de Estética
     const [light, setLight] = useState(1.0);
     const [color, setColor] = useState(0); 
     const [grain, setGrain] = useState(0.5);
-    const [focus, setFocus] = useState(0.8); // Começa levemente desfocado para estética analógica
+    const [focus, setFocus] = useState(0.8);
 
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
     const requestRef = useRef<number>(null);
 
-    const aestheticParams = useRef({ light, color, grain, focus, activeVibe, facingMode });
+    const aestheticParams = useRef({ light, color, grain, focus, activeVibe, facingMode, activeLens });
     
     useEffect(() => {
-        aestheticParams.current = { light, color, grain, focus, activeVibe, facingMode };
-    }, [light, color, grain, focus, activeVibe, facingMode]);
+        // Quando muda a lente, ajustamos o focus base
+        let newFocus = focus;
+        if (activeLens === '20cm') newFocus = 3.5;
+        else if (activeLens === '30cm') newFocus = 2.0;
+        else if (activeLens === '50cm') newFocus = 1.0;
+        else if (activeLens === 'auto') newFocus = 0.3;
+        
+        setFocus(newFocus);
+        aestheticParams.current = { light, color, grain, focus: newFocus, activeVibe, facingMode, activeLens };
+    }, [activeLens]);
+
+    useEffect(() => {
+        aestheticParams.current = { light, color, grain, focus, activeVibe, facingMode, activeLens };
+    }, [light, color, grain, focus, activeVibe, facingMode, activeLens]);
 
     const stopCamera = () => {
         if (streamRef.current) {
@@ -102,7 +116,6 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
     };
 
     const applyAnalogAesthetics = (ctx: CanvasRenderingContext2D, w: number, h: number, p: any) => {
-        // 1. Definição de presets de processamento de pixel
         let saturation = 1.0;
         let contrast = 1.0;
         let brightness = p.light;
@@ -114,21 +127,21 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
             case 'memory':
                 saturation = 0.8;
                 contrast = 0.9;
-                tintColor = "rgba(255, 200, 100, 0.15)"; // Tom quente amarelado
+                tintColor = "rgba(255, 200, 100, 0.15)";
                 tintOpacity = 0.15;
                 blur += 0.5;
                 break;
             case 'analog2k':
                 saturation = 1.3;
                 contrast = 1.1;
-                tintColor = "rgba(100, 255, 150, 0.1)"; // Tom esverdeado clássico CCD
+                tintColor = "rgba(100, 255, 150, 0.1)";
                 tintOpacity = 0.1;
                 blur += 1.2;
                 break;
             case 'filmsad':
                 saturation = 0.6;
                 contrast = 0.8;
-                tintColor = "rgba(50, 50, 100, 0.1)"; // Tom frio azulado
+                tintColor = "rgba(50, 50, 100, 0.1)";
                 tintOpacity = 0.1;
                 blur += 0.2;
                 break;
@@ -144,10 +157,7 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
                 break;
         }
 
-        // 2. Aplicação do Pipeline Visual
         ctx.globalCompositeOperation = 'source-over';
-        
-        // Camada de Filtros Básicos + Preset
         const filterStr = `brightness(${brightness}) contrast(${contrast}) saturate(${saturation}) hue-rotate(${p.color}deg) blur(${blur}px)`;
         
         const tempCanvas = document.createElement('canvas');
@@ -160,7 +170,6 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
             ctx.drawImage(tempCanvas, 0, 0);
         }
 
-        // Camada de Tint (Cor do Preset)
         if (tintOpacity > 0) {
             ctx.fillStyle = tintColor;
             ctx.globalAlpha = tintOpacity;
@@ -168,7 +177,6 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
             ctx.globalAlpha = 1.0;
         }
 
-        // 3. Grão Analógico (Noise Real)
         if (p.grain > 0) {
             ctx.globalAlpha = p.grain * 0.4;
             ctx.globalCompositeOperation = 'overlay';
@@ -183,27 +191,12 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
             ctx.globalAlpha = 1.0;
         }
 
-        // 4. Efeitos Específicos por Vibe (Pós-processamento)
-        if (p.activeVibe === 'vhs') {
-            // Scanlines e ruído horizontal
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-            for (let i = 0; i < h; i += 10) {
-                if (Math.random() > 0.3) ctx.fillRect(0, i + Math.random() * 2, w, 1.5);
-            }
-            // Distortion nas bordas
-            ctx.globalAlpha = 0.2;
-            ctx.drawImage(ctx.canvas, 4, 0, w, h);
-            ctx.globalAlpha = 1.0;
-        }
-
-        // 5. Vinheta Óptica (Suave nas bordas)
         const vin = ctx.createRadialGradient(w/2, h/2, w/4, w/2, h/2, w*0.95);
         vin.addColorStop(0, 'rgba(0,0,0,0)');
         vin.addColorStop(1, 'rgba(0,0,0,0.5)');
         ctx.fillStyle = vin;
         ctx.fillRect(0, 0, w, h);
 
-        // Watermark Néos
         ctx.font = 'bold 30px sans-serif';
         ctx.fillStyle = 'rgba(255,255,255,0.3)';
         ctx.fillText('NÉOS PARADISE', 50, 80);
@@ -259,6 +252,21 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
                 
                 {showFlash && <div className="absolute inset-0 bg-white z-[100] animate-pulse"></div>}
 
+                {/* Seleção de Lente Vertical Direita */}
+                {!capturedImage && (
+                    <div className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-50">
+                        {(['20cm', '30cm', '50cm', 'auto'] as LensDistance[]).map(lens => (
+                            <button 
+                                key={lens}
+                                onClick={() => setActiveLens(lens)}
+                                className={`w-12 h-12 rounded-full backdrop-blur-xl border flex items-center justify-center transition-all ${activeLens === lens ? 'bg-white text-black border-white shadow-[0_0_20px_rgba(255,255,255,0.3)] scale-110' : 'bg-black/20 text-white/40 border-white/10'}`}
+                            >
+                                <span className="text-[8px] font-black uppercase tracking-tighter">{lens}</span>
+                            </button>
+                        ))}
+                    </div>
+                )}
+
                 {/* Painel Flutuante de Ajustes (Glassmorphism) */}
                 {!capturedImage && showAdjustments && (
                     <div className="absolute left-6 top-1/2 -translate-y-1/2 flex flex-col gap-8 bg-black/30 backdrop-blur-[40px] p-8 rounded-[3rem] border border-white/10 z-[60] animate-slide-right shadow-2xl">
@@ -275,8 +283,8 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
                             <input type="range" min="0" max="1" step="0.01" value={grain} onChange={e => setGrain(parseFloat(e.target.value))} className="accent-zinc-400 h-1 w-28 appearance-none bg-white/10 rounded-full" />
                         </div>
                         <div className="flex flex-col gap-3">
-                            <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">Lente (Blur)</span>
-                            <input type="range" min="0" max="5" step="0.1" value={focus} onChange={e => setFocus(parseFloat(e.target.value))} className="accent-white/20 h-1 w-28 appearance-none bg-white/10 rounded-full" />
+                            <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">Foco Manual</span>
+                            <input type="range" min="0" max="10" step="0.1" value={focus} onChange={e => setFocus(parseFloat(e.target.value))} className="accent-white/20 h-1 w-28 appearance-none bg-white/10 rounded-full" />
                         </div>
                     </div>
                 )}
