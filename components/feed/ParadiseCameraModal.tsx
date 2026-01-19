@@ -6,7 +6,7 @@ interface ParadiseCameraModalProps {
     onClose: () => void;
 }
 
-type VibeEffect = 'cybershot' | 'memory' | 'analog2k' | 'filmsad' | 'vhs' | 'noir' | 'retro';
+type VibeEffect = 'memory' | 'analog2k' | 'filmsad' | 'vhs' | 'noir' | 'retro' | 'cybershot' | 'disposable';
 type LensDistance = '20cm' | '30cm' | '50cm' | 'auto';
 
 interface VibeConfig {
@@ -18,18 +18,19 @@ interface VibeConfig {
 }
 
 const VIBES: VibeConfig[] = [
-    { id: 'cybershot', name: 'Cyber-shot', label: 'SONY HX200V', sub: 'Digital 2012', color: 'text-sky-300' },
-    { id: 'memory', name: 'Memory', label: 'NOSTALGIA', sub: 'Tumblr 2016', color: 'text-amber-200' },
-    { id: 'analog2k', name: 'Analog 2000', label: 'CAMCORDER', sub: 'CCD Sensor', color: 'text-emerald-300' },
-    { id: 'filmsad', name: 'Film Sad', label: 'MOOD', sub: '35mm Expired', color: 'text-slate-400' },
-    { id: 'vhs', name: 'VHS Photo', label: 'GLITCH', sub: 'Handycam', color: 'text-sky-400' },
-    { id: 'retro', name: 'Retro Gold', label: 'VINTAGE', sub: 'Kodak 400', color: 'text-orange-300' },
-    { id: 'noir', name: 'Noir Sad', label: 'SILENT', sub: 'B&W Grain', color: 'text-white' },
+    { id: 'disposable', name: 'Disposable', label: 'FUJI 400', sub: 'Single Use', color: 'text-green-400' },
+    { id: 'memory', name: 'Nostalgia', label: 'MEMORY', sub: 'Tumblr 2014', color: 'text-amber-200' },
+    { id: 'analog2k', name: 'Analog 2k', label: 'CAMCORDER', sub: 'CCD Sensor', color: 'text-emerald-300' },
+    { id: 'cybershot', name: 'Cyber-shot', label: 'SONY 2012', sub: 'Digital Retro', color: 'text-sky-300' },
+    { id: 'filmsad', name: 'Film Sad', label: 'MOOD', sub: 'Expired 35mm', color: 'text-slate-400' },
+    { id: 'vhs', name: 'VHS Soft', label: 'GLITCH', sub: 'Handycam', color: 'text-sky-400' },
+    { id: 'retro', name: 'Retro Gold', label: 'VINTAGE', sub: 'Kodak Portra', color: 'text-orange-300' },
+    { id: 'noir', name: 'Silent Noir', label: 'SILENT', sub: 'B&W Grain', color: 'text-white' },
 ];
 
 const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClose }) => {
     const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
-    const [activeVibe, setActiveVibe] = useState<VibeEffect>('cybershot');
+    const [activeVibe, setActiveVibe] = useState<VibeEffect>('disposable');
     const [activeLens, setActiveLens] = useState<LensDistance>('auto');
     const [capturedImages, setCapturedImages] = useState<string[]>([]);
     const [viewingGallery, setViewingGallery] = useState(false);
@@ -41,10 +42,11 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
     const [handDetectionEnabled, setHandDetectionEnabled] = useState(false);
     const [showFlashAnim, setShowFlashAnim] = useState(false);
     
-    const [light, setLight] = useState(1.05);
-    const [color, setColor] = useState(0); 
-    const [grain, setGrain] = useState(0.2);
-    const [focus, setFocus] = useState(0.4);
+    // Sliders de Estética Analógica
+    const [light, setLight] = useState(1.0);
+    const [grain, setGrain] = useState(0.4);
+    const [focus, setFocus] = useState(0.5);
+    const [color, setColor] = useState(0);
 
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -52,20 +54,11 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
     const requestRef = useRef<number>(null);
     const lastBrightnessRef = useRef<number>(0);
 
-    const aestheticParams = useRef({ light, color, grain, focus, activeVibe, facingMode, activeLens, flashMode });
+    const aestheticParams = useRef({ light, grain, focus, color, activeVibe, facingMode, activeLens, flashMode });
     
     useEffect(() => {
-        let newFocus = focus;
-        if (activeLens === '20cm') newFocus = 3.5;
-        else if (activeLens === '30cm') newFocus = 2.0;
-        else if (activeLens === '50cm') newFocus = 1.0;
-        else if (activeLens === 'auto') newFocus = 0.3;
-        setFocus(newFocus);
-    }, [activeLens]);
-
-    useEffect(() => {
-        aestheticParams.current = { light, color, grain, focus, activeVibe, facingMode, activeLens, flashMode };
-    }, [light, color, grain, focus, activeVibe, facingMode, activeLens, flashMode]);
+        aestheticParams.current = { light, grain, focus, color, activeVibe, facingMode, activeLens, flashMode };
+    }, [light, grain, focus, color, activeVibe, facingMode, activeLens, flashMode]);
 
     const startCamera = async () => {
         if (streamRef.current) {
@@ -73,7 +66,7 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
         }
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }
+                video: { facingMode, width: { ideal: 1280 }, height: { ideal: 1920 } }
             });
             streamRef.current = stream;
             if (videoRef.current) {
@@ -82,7 +75,7 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
                 requestRef.current = requestAnimationFrame(renderLoop);
             }
         } catch (err) {
-            console.error("Paradise Camera Error:", err);
+            console.error("Néos Camera Error:", err);
         }
     };
 
@@ -108,57 +101,41 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
             ctx.drawImage(video, 0, 0, w, h);
             ctx.restore();
 
-            // Detecção de Palma (Simulada por mudança brusca de brilho/bloqueio central)
-            if (handDetectionEnabled && !isCounting && !viewingGallery) {
-                detectHandGesture(ctx, w, h);
-            }
-
-            applyAnalogAesthetics(ctx, w, h, params);
+            applyCazzCamAesthetics(ctx, w, h, params);
         }
         requestRef.current = requestAnimationFrame(renderLoop);
     };
 
-    const detectHandGesture = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
-        const scanW = 100;
-        const scanH = 100;
-        const imageData = ctx.getImageData(w/2 - 50, h/2 - 50, scanW, scanH);
-        let brightness = 0;
-        for (let i = 0; i < imageData.data.length; i += 4) {
-            brightness += (imageData.data[i] + imageData.data[i+1] + imageData.data[i+2]) / 3;
-        }
-        const avgBrightness = brightness / (scanW * scanH);
-        
-        // Se houver uma mudança súbita de luz (mão cobrindo a lente parcialmente ou refletindo luz)
-        if (lastBrightnessRef.current > 0 && Math.abs(avgBrightness - lastBrightnessRef.current) > 60) {
-            handleCapture();
-        }
-        lastBrightnessRef.current = avgBrightness;
-    };
-
-    const applyAnalogAesthetics = (ctx: CanvasRenderingContext2D, w: number, h: number, p: any) => {
-        let saturation = 1.0;
-        let contrast = 1.0;
+    const applyCazzCamAesthetics = (ctx: CanvasRenderingContext2D, w: number, h: number, p: any) => {
         let brightness = p.light;
         let blur = p.focus;
-        let tintColor = "transparent";
-        let tintOpacity = 0;
+        let contrast = 1.0;
+        let saturation = 1.0;
+        let blacksLift = 0;
+        let dateColor = "#EAB308"; // Amarelo clássico
 
+        // PRESETS ENGINE
         switch (p.activeVibe) {
-            case 'cybershot':
-                saturation = 1.2; contrast = 1.15; brightness += 0.05;
-                tintColor = "rgba(0, 100, 255, 0.03)"; tintOpacity = 0.05;
-                blur = Math.max(0.1, blur - 0.2);
+            case 'disposable':
+                contrast = 1.1; saturation = 1.2; blur += 0.4;
                 break;
             case 'memory':
-                saturation = 0.8; contrast = 0.9;
-                tintColor = "rgba(255, 200, 100, 0.15)"; tintOpacity = 0.15;
-                blur += 0.5;
+                contrast = 0.85; saturation = 0.7; blacksLift = 15;
                 break;
-            case 'vhs': saturation = 0.7; contrast = 1.2; blur += 2.0; break;
+            case 'vhs':
+                contrast = 1.2; saturation = 0.6; blur += 2.0;
+                break;
+            case 'noir':
+                saturation = 0; contrast = 1.4;
+                break;
+            case 'retro':
+                contrast = 1.05; saturation = 1.1; blacksLift = 10;
+                break;
         }
 
+        // 1. Filtros Base
         ctx.globalCompositeOperation = 'source-over';
-        const filterStr = `brightness(${brightness}) contrast(${contrast}) saturate(${saturation}) hue-rotate(${p.color}deg) blur(${blur}px)`;
+        const filterStr = `brightness(${brightness}) contrast(${contrast}) saturate(${saturation}) blur(${blur}px) hue-rotate(${p.color}deg)`;
         
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = w; tempCanvas.height = h;
@@ -169,19 +146,45 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
             ctx.drawImage(tempCanvas, 0, 0);
         }
 
-        if (p.grain > 0) {
-            ctx.globalAlpha = p.grain * 0.4;
-            ctx.globalCompositeOperation = 'overlay';
-            for (let i = 0; i < 200; i++) {
-                ctx.fillStyle = Math.random() > 0.5 ? '#fff' : '#000';
-                ctx.fillRect(Math.random() * w, Math.random() * h, 2, 2);
-            }
-            ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1.0;
+        // 2. Blacks Lift (Estética de filme lavado)
+        if (blacksLift > 0) {
+            ctx.fillStyle = `rgba(50, 50, 50, ${blacksLift / 100})`;
+            ctx.globalCompositeOperation = 'lighten';
+            ctx.fillRect(0, 0, w, h);
+            ctx.globalCompositeOperation = 'source-over';
         }
 
-        const vin = ctx.createRadialGradient(w/2, h/2, w/4, w/2, h/2, w*0.95);
-        vin.addColorStop(0, 'rgba(0,0,0,0)'); vin.addColorStop(1, 'rgba(0,0,0,0.5)');
-        ctx.fillStyle = vin; ctx.fillRect(0, 0, w, h);
+        // 3. Grão Orgânico (Noise Dinâmico)
+        if (p.grain > 0) {
+            ctx.globalAlpha = p.grain * 0.35;
+            for (let i = 0; i < 300; i++) {
+                ctx.fillStyle = Math.random() > 0.5 ? '#fff' : '#000';
+                ctx.fillRect(Math.random() * w, Math.random() * h, 1.5, 1.5);
+            }
+            ctx.globalAlpha = 1.0;
+        }
+
+        // 4. Vinheta Óptica (Suave)
+        const grd = ctx.createRadialGradient(w/2, h/2, w/4, w/2, h/2, w*0.8);
+        grd.addColorStop(0, 'transparent');
+        grd.addColorStop(1, 'rgba(0,0,0,0.4)');
+        ctx.fillStyle = grd;
+        ctx.fillRect(0, 0, w, h);
+
+        // 5. Date Stamp (Estilo CazzCam)
+        const now = new Date();
+        const dateStr = `'${now.getFullYear().toString().slice(-2)} ${ (now.getMonth()+1).toString().padStart(2,'0') } ${ now.getDate().toString().padStart(2,'0') }`;
+        ctx.font = 'bold 32px Courier New, monospace';
+        ctx.fillStyle = dateColor;
+        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx.shadowBlur = 4;
+        ctx.fillText(dateStr, w - 220, h - 80);
+        ctx.shadowBlur = 0;
+
+        // 6. Watermark Minimalista
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.fillText('NÉOS ANALOG PRO', 40, 60);
     };
 
     useEffect(() => {
@@ -194,11 +197,9 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
 
     const handleCapture = () => {
         if (isCounting) return;
-        const actualCountdown = countdown || (handDetectionEnabled ? 3 : 0);
-
-        if (actualCountdown > 0) {
+        if (countdown > 0) {
             setIsCounting(true);
-            setCurrentCount(actualCountdown);
+            setCurrentCount(countdown);
             const timer = setInterval(() => {
                 setCurrentCount(prev => {
                     if (prev <= 1) {
@@ -217,13 +218,9 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
     const executeCapture = () => {
         const canvas = canvasRef.current;
         if (!canvas) return;
-
-        if (flashMode === 'on' || (flashMode === 'auto' && Math.random() > 0.5)) {
-            setShowFlashAnim(true);
-            setTimeout(() => setShowFlashAnim(false), 150);
-        }
-
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        setShowFlashAnim(true);
+        setTimeout(() => setShowFlashAnim(false), 150);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
         setCapturedImages(prev => [...prev, dataUrl]);
         setIsCounting(false);
     };
@@ -234,51 +231,43 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
         <div className="fixed inset-0 z-[600] bg-black flex flex-col animate-fade-in overflow-hidden touch-none font-sans h-[100dvh]">
             {showFlashAnim && <div className="fixed inset-0 bg-white z-[1000] animate-flash-out"></div>}
 
-            {/* HUD SUPERIOR COMPACTO */}
-            <header className="absolute top-0 left-0 right-0 p-3 sm:p-6 flex justify-between items-center z-50">
-                <div className="flex gap-2">
+            {/* HUD SUPERIOR - CAZZCAM STYLE */}
+            <header className="absolute top-0 left-0 right-0 p-5 flex justify-between items-center z-50">
+                <div className="flex gap-3">
                     <button onClick={onClose} className="w-10 h-10 flex items-center justify-center bg-black/40 backdrop-blur-md rounded-full border border-white/10 text-white">&times;</button>
                     <button 
                         onClick={() => setFlashMode(prev => prev === 'off' ? 'on' : prev === 'on' ? 'auto' : 'off')}
-                        className={`w-10 h-10 flex items-center justify-center backdrop-blur-md rounded-full border border-white/10 transition-all ${flashMode !== 'off' ? 'bg-amber-400 text-black' : 'bg-black/40 text-white/60'}`}
+                        className={`w-10 h-10 flex items-center justify-center backdrop-blur-md rounded-full border border-white/10 transition-all ${flashMode !== 'off' ? 'bg-amber-400 text-black border-amber-300' : 'bg-black/40 text-white/60'}`}
                     >
-                        {flashMode === 'off' ? '✕' : flashMode === 'on' ? '⚡' : 'A'}
+                        ⚡
                     </button>
                 </div>
                 
-                {isCounting && (
-                    <div className="text-5xl font-black text-white italic drop-shadow-xl animate-pulse">
-                        {currentCount}
-                    </div>
-                )}
+                {isCounting && <div className="text-4xl font-black text-white italic animate-pulse">{currentCount}</div>}
 
-                <div className="flex gap-2">
+                <div className="flex gap-3">
                     <button onClick={() => setFacingMode(p => p === 'user' ? 'environment' : 'user')} className="w-10 h-10 flex items-center justify-center bg-black/40 backdrop-blur-md rounded-full border border-white/10 text-white">
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                    </button>
-                    <button 
-                        onClick={() => setHandDetectionEnabled(!handDetectionEnabled)}
-                        className={`w-10 h-10 flex items-center justify-center backdrop-blur-md rounded-full border border-white/10 transition-all ${handDetectionEnabled ? 'bg-green-500 text-white' : 'bg-black/40 text-white/60'}`}
-                    >
-                        ✋
                     </button>
                 </div>
             </header>
 
-            {/* VIEWPORT */}
+            {/* VIEWPORT - SEM BORDAS */}
             <div className="flex-grow relative bg-zinc-950 flex items-center justify-center overflow-hidden">
                 {viewingGallery ? (
                     <div className="absolute inset-0 z-[200] bg-black flex flex-col animate-fade-in">
                         <header className="p-4 flex justify-between items-center bg-zinc-900 border-b border-white/5">
                             <button onClick={() => setViewingGallery(false)} className="text-white font-black uppercase text-[10px] tracking-widest">Voltar</button>
-                            <h3 className="text-white font-black text-xs uppercase tracking-widest">{capturedImages.length} fotos</h3>
+                            <h3 className="text-white font-black text-xs uppercase tracking-widest">{capturedImages.length} Capturas</h3>
                             <button onClick={() => setCapturedImages([])} className="text-red-500 text-[10px] font-black uppercase tracking-widest">Limpar</button>
                         </header>
-                        <div className="flex-grow overflow-y-auto p-2 grid grid-cols-3 gap-1 no-scrollbar">
+                        <div className="flex-grow overflow-y-auto p-4 grid grid-cols-2 gap-4 no-scrollbar">
                             {capturedImages.map((img, i) => (
-                                <div key={i} className="aspect-[3/4] relative rounded-lg overflow-hidden border border-white/5">
+                                <div key={i} className="aspect-[3/4] relative rounded-[2rem] overflow-hidden shadow-2xl border border-white/10">
                                     <img src={img} className="w-full h-full object-cover" />
-                                    <button onClick={() => setCapturedImages(prev => prev.filter((_, idx) => idx !== i))} className="absolute top-1 right-1 bg-black/50 text-white w-5 h-5 rounded-full text-[10px]">&times;</button>
+                                    <a href={img} download={`neos-analog-${i}.jpg`} className="absolute bottom-3 right-3 bg-white text-black p-3 rounded-full shadow-xl">
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" strokeWidth={3}/></svg>
+                                    </a>
                                 </div>
                             ))}
                         </div>
@@ -288,22 +277,13 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
                         <video ref={videoRef} className="hidden" />
                         <canvas ref={canvasRef} className="w-full h-full object-cover" />
                         
-                        {/* LENTES LATERAIS COMPACTAS */}
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-50 scale-90">
-                            {(['20cm', '30cm', '50cm', 'auto'] as LensDistance[]).map(lens => (
-                                <button 
-                                    key={lens}
-                                    onClick={() => setActiveLens(lens)}
-                                    className={`w-9 h-9 rounded-full backdrop-blur-md border flex items-center justify-center transition-all ${activeLens === lens ? 'bg-white text-black border-white' : 'bg-black/40 text-white/40 border-white/5'}`}
-                                >
-                                    <span className="text-[7px] font-black">{lens}</span>
-                                </button>
-                            ))}
-                            <button 
+                        {/* SIDEBAR AJUSTES RAPIDOS */}
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-50">
+                             <button 
                                 onClick={() => setCountdown(prev => prev === 0 ? 3 : prev === 3 ? 10 : 0)}
-                                className={`w-9 h-9 mt-4 rounded-full backdrop-blur-md border flex items-center justify-center ${countdown > 0 ? 'bg-sky-500 text-white' : 'bg-black/40 text-white/40 border-white/5'}`}
+                                className={`w-9 h-9 rounded-full backdrop-blur-md border flex items-center justify-center transition-all ${countdown > 0 ? 'bg-sky-500 text-white border-sky-400' : 'bg-black/40 text-white/40 border-white/5'}`}
                             >
-                                <span className="text-[8px] font-black">{countdown || '⏱'}</span>
+                                <span className="text-[8px] font-black">{countdown ? `${countdown}s` : '⏱'}</span>
                             </button>
                         </div>
                     </>
@@ -311,100 +291,98 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
             </div>
 
             {/* CONSOLE INFERIOR AJUSTADO PARA MOBILE */}
-            <footer className="bg-zinc-950 px-4 pb-8 pt-2 z-50 border-t border-white/5">
+            <footer className="bg-black px-4 pb-10 pt-4 z-50">
                 {!viewingGallery ? (
-                    <div className="flex flex-col gap-4">
-                        {/* BOTÕES DE EDIÇÃO */}
-                        <div className="flex justify-between items-center px-2">
-                             <button 
-                                onClick={() => setShowAdjustments(!showAdjustments)} 
-                                className={`text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full border transition-all ${showAdjustments ? 'bg-sky-500 text-white border-sky-400' : 'bg-zinc-900 text-zinc-500 border-zinc-800'}`}
-                            >
-                                Ajustes
-                            </button>
-                            <span className="text-[8px] text-zinc-600 font-black uppercase tracking-[0.2em]">Paradise Lenses</span>
-                        </div>
-
-                        {showAdjustments && (
-                            <div className="bg-zinc-900/90 backdrop-blur-xl p-4 rounded-3xl border border-white/5 animate-slide-up mb-2">
-                                <div className="grid grid-cols-1 gap-4">
-                                    <div className="flex items-center gap-4">
-                                        <span className="text-[8px] font-black text-white/40 uppercase w-8">Luz</span>
-                                        <input type="range" min="0.5" max="1.5" step="0.01" value={light} onChange={e => setLight(parseFloat(e.target.value))} className="accent-white h-1 flex-grow appearance-none bg-white/10 rounded-full" />
-                                    </div>
-                                    <div className="flex items-center gap-4">
-                                        <span className="text-[8px] font-black text-white/40 uppercase w-8">Grão</span>
-                                        <input type="range" min="0" max="1" step="0.01" value={grain} onChange={e => setGrain(parseFloat(e.target.value))} className="accent-zinc-400 h-1 flex-grow appearance-none bg-white/10 rounded-full" />
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* LISTA DE VIBES COMPACTA */}
-                        <div className="flex gap-3 overflow-x-auto no-scrollbar py-2 px-1">
+                    <div className="flex flex-col gap-6">
+                        
+                        {/* LISTA DE EFEITOS HORIZONTAL - ESTILO CAZZCAM */}
+                        <div className="flex gap-4 overflow-x-auto no-scrollbar py-2 px-1 snap-x snap-mandatory">
                             {VIBES.map((v) => (
                                 <button
                                     key={v.id}
                                     onClick={() => setActiveVibe(v.id)}
-                                    className={`flex flex-col items-center shrink-0 transition-all ${activeVibe === v.id ? 'scale-100 opacity-100' : 'scale-90 opacity-30 grayscale'}`}
+                                    className={`flex flex-col items-center shrink-0 snap-center transition-all duration-300 ${activeVibe === v.id ? 'scale-110 opacity-100' : 'scale-90 opacity-20 grayscale'}`}
                                 >
-                                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border-2 ${activeVibe === v.id ? 'bg-zinc-900 border-white' : 'bg-zinc-900/50 border-white/5'}`}>
-                                        <span className="text-xl">📸</span>
+                                    <div className={`w-16 h-16 rounded-[1.5rem] flex flex-col items-center justify-center border-2 ${activeVibe === v.id ? 'bg-zinc-900 border-white shadow-[0_0_20px_rgba(255,255,255,0.1)]' : 'bg-zinc-900/50 border-white/5'}`}>
+                                        <span className="text-[7px] font-black uppercase text-white/50">{v.sub}</span>
+                                        <span className={`text-[8px] font-black uppercase mt-1 tracking-widest ${activeVibe === v.id ? v.color : 'text-white'}`}>{v.id}</span>
                                     </div>
-                                    <span className="text-[7px] font-black uppercase mt-1 text-white truncate w-14 text-center">{v.name}</span>
+                                    <span className="text-[9px] font-black uppercase mt-2 text-white/40 tracking-tighter">{v.name}</span>
                                 </button>
                             ))}
                         </div>
 
-                        {/* DISPARADOR E GALERIA */}
-                        <div className="flex items-center justify-center gap-12 pt-2">
+                        {/* DISPARADOR E AJUSTES */}
+                        <div className="flex items-center justify-between px-6">
                             <button 
                                 onClick={() => setViewingGallery(true)}
-                                className="w-12 h-12 rounded-2xl bg-zinc-900 border border-white/10 overflow-hidden flex items-center justify-center"
+                                className="w-12 h-12 rounded-2xl bg-zinc-900 border border-white/10 overflow-hidden flex items-center justify-center group active:scale-95 transition-all"
                             >
                                 {capturedImages.length > 0 ? (
-                                    <img src={capturedImages[capturedImages.length - 1]} className="w-full h-full object-cover opacity-50" />
+                                    <img src={capturedImages[capturedImages.length - 1]} className="w-full h-full object-cover opacity-60" />
                                 ) : (
-                                    <span className="text-zinc-700 text-lg">🖼️</span>
+                                    <div className="w-6 h-6 border-2 border-white/20 rounded-lg"></div>
                                 )}
                             </button>
 
                             <button 
                                 onClick={handleCapture} 
-                                disabled={isCounting}
-                                className="w-20 h-20 rounded-full border-4 border-white/20 flex items-center justify-center p-1.5 active:scale-90 transition-all disabled:opacity-50"
+                                className="w-24 h-24 rounded-full border-4 border-white/10 flex items-center justify-center p-2 active:scale-90 transition-all"
                             >
-                                <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
-                                    <div className={`w-14 h-14 rounded-full border border-black/5 ${isCounting ? 'animate-ping' : ''}`}></div>
+                                <div className="w-full h-full rounded-full bg-white flex items-center justify-center shadow-[0_0_30px_rgba(255,255,255,0.2)]">
+                                    <div className="w-16 h-16 rounded-full border-2 border-black/5"></div>
                                 </div>
                             </button>
 
-                            <button onClick={onClose} className="w-12 h-12 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-white/30">
-                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M6 18L18 6M6 6l12 12" strokeWidth={2}/></svg>
+                            <button 
+                                onClick={() => setShowAdjustments(!showAdjustments)}
+                                className={`w-12 h-12 rounded-2xl flex items-center justify-center border transition-all ${showAdjustments ? 'bg-white text-black' : 'bg-zinc-900 text-white/40 border-white/10'}`}
+                            >
+                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" strokeWidth={2}/></svg>
                             </button>
                         </div>
+
+                        {/* PAINEL DE AJUSTES FLUTUANTE */}
+                        {showAdjustments && (
+                            <div className="bg-zinc-900/90 backdrop-blur-2xl p-6 rounded-[2.5rem] border border-white/10 animate-slide-up">
+                                <div className="grid grid-cols-1 gap-6">
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between"><span className="text-[10px] font-black uppercase text-white/40">Exposição</span><span className="text-[10px] text-white">{(light*100).toFixed(0)}%</span></div>
+                                        <input type="range" min="0.5" max="1.5" step="0.01" value={light} onChange={e => setLight(parseFloat(e.target.value))} className="accent-white h-1 w-full appearance-none bg-white/10 rounded-full" />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between"><span className="text-[10px] font-black uppercase text-white/40">Grão Analógico</span><span className="text-[10px] text-white">{(grain*100).toFixed(0)}%</span></div>
+                                        <input type="range" min="0" max="1" step="0.01" value={grain} onChange={e => setGrain(parseFloat(e.target.value))} className="accent-white h-1 w-full appearance-none bg-white/10 rounded-full" />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between"><span className="text-[10px] font-black uppercase text-white/40">Soft Focus</span><span className="text-[10px] text-white">{(focus*10).toFixed(1)}</span></div>
+                                        <input type="range" min="0" max="5" step="0.1" value={focus} onChange={e => setFocus(parseFloat(e.target.value))} className="accent-white h-1 w-full appearance-none bg-white/10 rounded-full" />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ) : (
-                    <div className="flex gap-3 w-full animate-slide-up">
+                    <div className="flex gap-4 w-full animate-slide-up">
                         <button 
                             onClick={() => { setCapturedImages([]); setViewingGallery(false); }} 
-                            className="flex-1 py-4 bg-zinc-900 text-white/40 text-[9px] font-black uppercase tracking-widest rounded-2xl border border-white/5"
+                            className="flex-1 py-5 bg-zinc-900 text-white/40 text-[10px] font-black uppercase tracking-widest rounded-3xl border border-white/5"
                         >
-                            Reset
+                            Reset Session
                         </button>
                         <button 
                             onClick={() => {
                                 capturedImages.forEach((img, i) => {
                                     const link = document.createElement('a');
-                                    link.download = `paradise-${Date.now()}-${i}.jpg`;
+                                    link.download = `neos-analog-${i}.jpg`;
                                     link.href = img;
                                     link.click();
                                 });
                                 onClose();
                             }}
-                            className="flex-1 py-4 bg-white text-black text-[9px] font-black uppercase tracking-widest rounded-2xl shadow-xl"
+                            className="flex-1 py-5 bg-white text-black text-[10px] font-black uppercase tracking-widest rounded-3xl shadow-2xl active:scale-95 transition-all"
                         >
-                            Salvar {capturedImages.length} Fotos
+                            Save All
                         </button>
                     </div>
                 )}
@@ -414,12 +392,12 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
                 .no-scrollbar::-webkit-scrollbar { display: none; }
                 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
                 @keyframes flash-out { 0% { opacity: 1; } 100% { opacity: 0; } }
-                .animate-flash-out { animation: flash-out 0.6s ease-out forwards; }
+                .animate-flash-out { animation: flash-out 0.8s ease-out forwards; }
                 @keyframes slide-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
                 .animate-slide-up { animation: slide-up 0.4s cubic-bezier(0.23, 1, 0.32, 1) forwards; }
                 input[type=range]::-webkit-slider-thumb {
                     -webkit-appearance: none;
-                    height: 16px; width: 16px;
+                    height: 18px; width: 18px;
                     border-radius: 50%; background: white;
                     box-shadow: 0 0 10px rgba(0,0,0,0.5);
                 }
