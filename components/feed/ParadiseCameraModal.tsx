@@ -6,7 +6,7 @@ interface ParadiseCameraModalProps {
     onClose: () => void;
 }
 
-type VibeEffect = 'vhs2003' | 'digicam' | 'ccdcool' | 'eightmm' | 'asteric' | 'y2kmirror' | 'polaroid' | 'lowfinight';
+type VibeEffect = 'vhs2003' | 'digicam' | 'ccdcool' | 'eightmm' | 'asteric' | 'y2kmirror' | 'polaroid' | 'lowfinight' | 'tumblr2009' | 'aestheticy2k' | 'digicam2006' | 'myspaceflash';
 
 interface EffectConfig {
     id: VibeEffect;
@@ -29,7 +29,12 @@ const PRESETS: Record<VibeEffect, EffectConfig> = {
     asteric: { id: 'asteric', name: 'Asteric', label: 'SOFT', grain: 0.1, blur: 2.0, temp: 10, glow: 0.8, saturation: 1.2, contrast: 0.8, tint: 'rgba(255,100,200,0.1)' },
     y2kmirror: { id: 'y2kmirror', name: 'Y2K Mirror', label: 'CYBER', grain: 0.4, blur: 0.5, temp: -10, glow: 0.3, saturation: 0.8, contrast: 0.7, tint: 'rgba(0,255,255,0.05)' },
     polaroid: { id: 'polaroid', name: 'Polaroid', label: 'INSTAX', grain: 0.3, blur: 0.6, temp: 0, glow: 0.2, saturation: 0.9, contrast: 0.8, tint: 'rgba(255,255,255,0.1)' },
-    lowfinight: { id: 'lowfinight', name: 'Low-Fi', label: 'NIGHT', grain: 0.9, blur: 1.8, temp: 0, glow: 0.5, saturation: 1.5, contrast: 1.5, tint: 'rgba(128,0,255,0.15)' }
+    lowfinight: { id: 'lowfinight', name: 'Low-Fi', label: 'NIGHT', grain: 0.9, blur: 1.8, temp: 0, glow: 0.5, saturation: 1.5, contrast: 1.5, tint: 'rgba(128,0,255,0.15)' },
+    // Novos efeitos
+    tumblr2009: { id: 'tumblr2009', name: 'Tumblr 2009', label: 'SOFT', grain: 0.4, blur: 0.4, temp: -5, glow: 0.1, saturation: 0.7, contrast: 0.9, tint: 'rgba(100,100,120,0.1)' },
+    aestheticy2k: { id: 'aestheticy2k', name: 'Aesthetic Y2K', label: 'PURE', grain: 0.15, blur: 0.8, temp: 5, glow: 0.6, saturation: 0.85, contrast: 1.1, tint: 'rgba(255,255,255,0.02)' },
+    digicam2006: { id: 'digicam2006', name: 'Digicam 2006', label: 'AUTO', grain: 0.3, blur: 0.2, temp: -15, glow: 0.2, saturation: 1.2, contrast: 1.3, tint: 'rgba(0,50,150,0.05)' },
+    myspaceflash: { id: 'myspaceflash', name: 'MySpace Flash', label: 'RAW', grain: 0.5, blur: 0.1, temp: 10, glow: 0.5, saturation: 1.4, contrast: 1.6, tint: 'rgba(255,200,150,0.08)' }
 };
 
 const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClose }) => {
@@ -44,7 +49,6 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
     const [currentCount, setCurrentCount] = useState(0);
     const [showFlashAnim, setShowFlashAnim] = useState(false);
 
-    // Configurações personalizáveis por efeito
     const [customConfigs, setCustomConfigs] = useState<Record<VibeEffect, EffectConfig>>(PRESETS);
 
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -52,7 +56,6 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
     const streamRef = useRef<MediaStream | null>(null);
     const frameId = useRef<number | null>(null);
 
-    // Ref para acessar o estado atual dentro do loop de renderização (sem stale closures)
     const renderState = useRef({ activeVibe, customConfigs, facingMode });
     useEffect(() => {
         renderState.current = { activeVibe, customConfigs, facingMode };
@@ -71,7 +74,6 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
                 videoRef.current.play();
-                // Inicia o pipeline de renderização se não estiver rodando
                 if (!frameId.current) {
                     frameId.current = requestAnimationFrame(renderLoop);
                 }
@@ -94,7 +96,6 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
                 const w = canvas.width = video.videoWidth;
                 const h = canvas.height = video.videoHeight;
                 
-                // Passo 1: Limpar e desenhar o frame original (com espelhamento se necessário)
                 ctx.save();
                 if (fMode === 'user') {
                     ctx.translate(w, 0);
@@ -103,7 +104,6 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
                 ctx.drawImage(video, 0, 0, w, h);
                 ctx.restore();
 
-                // Passo 2: Pipeline de Efeitos Real (Aplicado via Offscreen logic ou Canvas filters)
                 applyAestheticPipeline(ctx, w, h, config);
             }
         }
@@ -111,21 +111,18 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
     };
 
     const applyAestheticPipeline = (ctx: CanvasRenderingContext2D, w: number, h: number, c: EffectConfig) => {
-        // 1. Color Grading & Blur
         const brightness = 1.05;
         ctx.filter = `brightness(${brightness}) contrast(${c.contrast}) saturate(${c.saturation}) hue-rotate(${c.temp}deg) blur(${c.blur}px)`;
         
-        // Redesenhar para aplicar o filtro atual no conteúdo do canvas
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = w; tempCanvas.height = h;
         const tempCtx = tempCanvas.getContext('2d');
         if (tempCtx) {
             tempCtx.drawImage(ctx.canvas, 0, 0);
-            ctx.filter = 'none'; // Reset para as próximas camadas não acumularem blur
+            ctx.filter = 'none';
             ctx.drawImage(tempCanvas, 0, 0);
         }
 
-        // 2. Bloom/Glow Layer
         if (c.glow > 0) {
             ctx.save();
             ctx.globalAlpha = c.glow * 0.5;
@@ -135,12 +132,10 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
             ctx.restore();
         }
 
-        // 3. Noise/Grain Realista (Criação de textura processual)
         if (c.grain > 0) {
             ctx.save();
             ctx.globalAlpha = c.grain * 0.4;
             ctx.globalCompositeOperation = 'overlay';
-            // Desenhar grãos de forma eficiente (pequenos pontos aleatórios)
             for (let i = 0; i < 200; i++) {
                 ctx.fillStyle = Math.random() > 0.5 ? '#fff' : '#000';
                 ctx.fillRect(Math.random() * w, Math.random() * h, 1.5, 1.5);
@@ -148,24 +143,21 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
             ctx.restore();
         }
 
-        // 4. Tint Aesthetic
         ctx.save();
         ctx.fillStyle = c.tint;
         ctx.globalAlpha = 1.0;
         ctx.fillRect(0, 0, w, h);
         ctx.restore();
 
-        // 5. Digital Date Stamp (Y2K Estilo)
         const now = new Date();
         const dateStr = `'${now.getFullYear().toString().slice(-2)} ${ (now.getMonth()+1).toString().padStart(2,'0') } ${ now.getDate().toString().padStart(2,'0') }`;
         ctx.font = 'bold 32px monospace';
-        ctx.fillStyle = '#facc15'; // Amarelo clássico digital
+        ctx.fillStyle = '#facc15';
         ctx.shadowColor = 'rgba(0,0,0,0.5)';
         ctx.shadowBlur = 4;
         ctx.fillText(dateStr, w - 220, h - 80);
         ctx.shadowBlur = 0;
 
-        // 6. Optic Vignette
         const grad = ctx.createRadialGradient(w/2, h/2, w/4, w/2, h/2, w*0.85);
         grad.addColorStop(0, 'transparent');
         grad.addColorStop(1, 'rgba(0,0,0,0.35)');
@@ -209,7 +201,15 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
         setShowFlashAnim(true);
         setTimeout(() => setShowFlashAnim(false), 150);
 
-        // A foto final já contém os efeitos do loop de renderização atual
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            ctx.save();
+            ctx.font = '16px monospace';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.fillText('Powered by Néos', 60, canvas.height - 80);
+            ctx.restore();
+        }
+
         const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
         setCapturedImages(prev => [...prev, dataUrl]);
         setIsCounting(false);
@@ -228,7 +228,6 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
         <div className="fixed inset-0 z-[600] bg-black flex flex-col overflow-hidden touch-none h-[100dvh] font-sans text-white">
             {showFlashAnim && <div className="fixed inset-0 bg-white z-[1000] animate-flash-out"></div>}
 
-            {/* HUD SUPERIOR COMPACTO */}
             <header className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-50">
                 <div className="flex gap-2">
                     <button onClick={onClose} className="w-10 h-10 flex items-center justify-center bg-black/40 backdrop-blur-xl rounded-full border border-white/10 active:scale-90 transition-all text-xl">&times;</button>
@@ -250,7 +249,6 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
                 </button>
             </header>
 
-            {/* VIEWPORT DA CÂMERA */}
             <div className="flex-grow relative bg-zinc-950 flex items-center justify-center overflow-hidden">
                 {viewingGallery ? (
                     <div className="absolute inset-0 z-[200] bg-black flex flex-col animate-fade-in">
@@ -287,12 +285,10 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
                 )}
             </div>
 
-            {/* CONTROLES ESTILO CAMSCAM PREMIUM */}
             <footer className="bg-black/95 backdrop-blur-3xl px-4 pb-10 pt-4 border-t border-white/5 z-50">
                 {!viewingGallery ? (
                     <div className="flex flex-col gap-6">
                         
-                        {/* PAINEL DE AJUSTES TÁTIL */}
                         {showAdjustments && (
                             <div className="space-y-5 animate-slide-up bg-zinc-900/60 p-5 rounded-[2.5rem] border border-white/5">
                                 {[
@@ -317,14 +313,12 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
                             </div>
                         )}
 
-                        {/* SELETOR DE EFEITOS HORIZONTAL REATIVO */}
                         <div className="flex gap-4 overflow-x-auto no-scrollbar py-1 snap-x snap-mandatory">
                             {(Object.values(customConfigs) as EffectConfig[]).map((eff) => (
                                 <button
                                     key={eff.id}
                                     onClick={() => {
                                         setActiveVibe(eff.id);
-                                        // Resetar ajustes se mudar de efeito (opcional)
                                     }}
                                     onContextMenu={(e) => { e.preventDefault(); setShowAdjustments(!showAdjustments); }}
                                     className={`flex flex-col items-center shrink-0 snap-center transition-all duration-300 ${activeVibe === eff.id ? 'scale-110 opacity-100' : 'scale-90 opacity-20 grayscale'}`}
@@ -338,7 +332,6 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
                             ))}
                         </div>
 
-                        {/* DISPARADOR CENTRAL */}
                         <div className="flex items-center justify-between px-6">
                             <button 
                                 onClick={() => setViewingGallery(true)}
