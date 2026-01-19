@@ -202,7 +202,13 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
         if (!canvas) return;
 
         const isTorchOn = flashMode === 'on' && facingMode === 'environment';
-        if (isTorchOn) await toggleTorch(true);
+        
+        // Ativa flash físico milissegundos antes da captura
+        if (isTorchOn) {
+            await toggleTorch(true);
+            // Pequeno delay para o sensor da câmera ajustar à luz
+            await new Promise(r => setTimeout(r, 100));
+        }
 
         setShowFlashAnim(true);
         setTimeout(() => setShowFlashAnim(false), 150);
@@ -229,7 +235,11 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
 
         const dataUrl = outputCanvas.toDataURL('image/jpeg', 0.95);
         setCapturedImages(prev => [dataUrl, ...prev]);
-        if (isTorchOn) await toggleTorch(false);
+
+        // Desliga flash físico imediatamente após captura
+        if (isTorchOn) {
+            await toggleTorch(false);
+        }
     };
 
     if (!isOpen) return null;
