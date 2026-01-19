@@ -22,14 +22,14 @@ interface EffectConfig {
 }
 
 const PRESETS: Record<VibeEffect, EffectConfig> = {
-    vhs2003: { id: 'vhs2003', name: 'VHS 2003', label: 'TAPE', grain: 0.6, blur: 2.5, temp: 5, glow: 0.2, saturation: 0.7, contrast: 1.2, tint: 'rgba(0,0,50,0.05)' },
-    digicam: { id: 'digicam', name: 'Digicam', label: 'SONY', grain: 0.2, blur: 0.3, temp: 0, glow: 0.4, saturation: 1.3, contrast: 1.4, tint: 'rgba(255,255,255,0.05)' },
-    ccdcool: { id: 'ccdcool', name: 'CCD Cool', label: 'DIGI', grain: 0.1, blur: 0.5, temp: -25, glow: 0.1, saturation: 1.1, contrast: 1.1, tint: 'rgba(0,100,255,0.08)' },
-    eightmm: { id: 'eightmm', name: '8mm Reel', label: 'FILM', grain: 0.8, blur: 1.2, temp: 15, glow: 0.3, saturation: 0.6, contrast: 0.9, tint: 'rgba(100,50,0,0.1)' },
-    asteric: { id: 'asteric', name: 'Asteric', label: 'SOFT', grain: 0.1, blur: 1.5, temp: 10, glow: 0.8, saturation: 1.2, contrast: 0.8, tint: 'rgba(255,100,200,0.1)' },
-    y2kmirror: { id: 'y2kmirror', name: 'Y2K Mirror', label: 'CYBER', grain: 0.4, blur: 0.8, temp: -10, glow: 0.3, saturation: 0.8, contrast: 0.7, tint: 'rgba(0,255,255,0.05)' },
-    polaroid: { id: 'polaroid', name: 'Polaroid', label: 'INSTAX', grain: 0.3, blur: 1.0, temp: 0, glow: 0.2, saturation: 0.9, contrast: 0.8, tint: 'rgba(255,255,255,0.1)' },
-    lowfinight: { id: 'lowfinight', name: 'Low-Fi', label: 'NIGHT', grain: 0.9, blur: 2.0, temp: 0, glow: 0.5, saturation: 1.5, contrast: 1.5, tint: 'rgba(128,0,255,0.15)' }
+    vhs2003: { id: 'vhs2003', name: 'VHS 2003', label: 'TAPE', grain: 0.6, blur: 1.5, temp: 5, glow: 0.2, saturation: 0.7, contrast: 1.2, tint: 'rgba(0,0,50,0.05)' },
+    digicam: { id: 'digicam', name: 'Digicam', label: 'SONY', grain: 0.2, blur: 0.1, temp: 0, glow: 0.4, saturation: 1.3, contrast: 1.4, tint: 'rgba(255,255,255,0.05)' },
+    ccdcool: { id: 'ccdcool', name: 'CCD Cool', label: 'DIGI', grain: 0.1, blur: 0.3, temp: -25, glow: 0.1, saturation: 1.1, contrast: 1.1, tint: 'rgba(0,100,255,0.08)' },
+    eightmm: { id: 'eightmm', name: '8mm Reel', label: 'FILM', grain: 0.8, blur: 0.8, temp: 15, glow: 0.3, saturation: 0.6, contrast: 0.9, tint: 'rgba(100,50,0,0.1)' },
+    asteric: { id: 'asteric', name: 'Asteric', label: 'SOFT', grain: 0.1, blur: 2.0, temp: 10, glow: 0.8, saturation: 1.2, contrast: 0.8, tint: 'rgba(255,100,200,0.1)' },
+    y2kmirror: { id: 'y2kmirror', name: 'Y2K Mirror', label: 'CYBER', grain: 0.4, blur: 0.5, temp: -10, glow: 0.3, saturation: 0.8, contrast: 0.7, tint: 'rgba(0,255,255,0.05)' },
+    polaroid: { id: 'polaroid', name: 'Polaroid', label: 'INSTAX', grain: 0.3, blur: 0.6, temp: 0, glow: 0.2, saturation: 0.9, contrast: 0.8, tint: 'rgba(255,255,255,0.1)' },
+    lowfinight: { id: 'lowfinight', name: 'Low-Fi', label: 'NIGHT', grain: 0.9, blur: 1.8, temp: 0, glow: 0.5, saturation: 1.5, contrast: 1.5, tint: 'rgba(128,0,255,0.15)' }
 };
 
 const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClose }) => {
@@ -44,13 +44,19 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
     const [currentCount, setCurrentCount] = useState(0);
     const [showFlashAnim, setShowFlashAnim] = useState(false);
 
-    // Live Tweaking
+    // Configurações personalizáveis por efeito
     const [customConfigs, setCustomConfigs] = useState<Record<VibeEffect, EffectConfig>>(PRESETS);
 
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
-    const requestRef = useRef<number>(null);
+    const frameId = useRef<number | null>(null);
+
+    // Ref para acessar o estado atual dentro do loop de renderização (sem stale closures)
+    const renderState = useRef({ activeVibe, customConfigs, facingMode });
+    useEffect(() => {
+        renderState.current = { activeVibe, customConfigs, facingMode };
+    }, [activeVibe, customConfigs, facingMode]);
 
     const startCamera = useCallback(async () => {
         if (streamRef.current) {
@@ -65,7 +71,10 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
                 videoRef.current.play();
-                requestRef.current = requestAnimationFrame(renderLoop);
+                // Inicia o pipeline de renderização se não estiver rodando
+                if (!frameId.current) {
+                    frameId.current = requestAnimationFrame(renderLoop);
+                }
             }
         } catch (err) {
             console.error("Paradise Camera Error:", err);
@@ -75,88 +84,91 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
     const renderLoop = () => {
         const video = videoRef.current;
         const canvas = canvasRef.current;
-        if (!video || !canvas || video.readyState < 2) {
-            requestRef.current = requestAnimationFrame(renderLoop);
-            return;
-        }
+        
+        if (video && canvas && video.readyState >= 2) {
+            const ctx = canvas.getContext('2d', { alpha: false });
+            if (ctx) {
+                const { activeVibe: currentVibe, customConfigs: configs, facingMode: fMode } = renderState.current;
+                const config = configs[currentVibe];
 
-        const ctx = canvas.getContext('2d', { alpha: false });
-        if (ctx) {
-            const w = canvas.width = video.videoWidth;
-            const h = canvas.height = video.videoHeight;
-            
-            ctx.save();
-            if (facingMode === 'user') {
-                ctx.translate(w, 0);
-                ctx.scale(-1, 1);
+                const w = canvas.width = video.videoWidth;
+                const h = canvas.height = video.videoHeight;
+                
+                // Passo 1: Limpar e desenhar o frame original (com espelhamento se necessário)
+                ctx.save();
+                if (fMode === 'user') {
+                    ctx.translate(w, 0);
+                    ctx.scale(-1, 1);
+                }
+                ctx.drawImage(video, 0, 0, w, h);
+                ctx.restore();
+
+                // Passo 2: Pipeline de Efeitos Real (Aplicado via Offscreen logic ou Canvas filters)
+                applyAestheticPipeline(ctx, w, h, config);
             }
-            ctx.drawImage(video, 0, 0, w, h);
-            ctx.restore();
-
-            applyAestheticFilters(ctx, w, h);
         }
-        requestRef.current = requestAnimationFrame(renderLoop);
+        frameId.current = requestAnimationFrame(renderLoop);
     };
 
-    const applyAestheticFilters = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
-        const c = customConfigs[activeVibe];
-
-        // 1. Color Grading & Effects Base
+    const applyAestheticPipeline = (ctx: CanvasRenderingContext2D, w: number, h: number, c: EffectConfig) => {
+        // 1. Color Grading & Blur
         const brightness = 1.05;
-        const filterStr = `brightness(${brightness}) contrast(${c.contrast}) saturate(${c.saturation}) hue-rotate(${c.temp}deg) blur(${c.blur}px)`;
+        ctx.filter = `brightness(${brightness}) contrast(${c.contrast}) saturate(${c.saturation}) hue-rotate(${c.temp}deg) blur(${c.blur}px)`;
         
+        // Redesenhar para aplicar o filtro atual no conteúdo do canvas
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = w; tempCanvas.height = h;
         const tempCtx = tempCanvas.getContext('2d');
         if (tempCtx) {
-            tempCtx.filter = filterStr;
             tempCtx.drawImage(ctx.canvas, 0, 0);
+            ctx.filter = 'none'; // Reset para as próximas camadas não acumularem blur
             ctx.drawImage(tempCanvas, 0, 0);
         }
 
-        // 2. Glow Layer (Highlights)
+        // 2. Bloom/Glow Layer
         if (c.glow > 0) {
-            ctx.globalAlpha = c.glow * 0.4;
+            ctx.save();
+            ctx.globalAlpha = c.glow * 0.5;
             ctx.globalCompositeOperation = 'screen';
-            ctx.filter = `blur(${20 * c.glow}px) brightness(1.5)`;
+            ctx.filter = `blur(${15 * c.glow}px) brightness(1.2)`;
             ctx.drawImage(ctx.canvas, 0, 0);
-            ctx.filter = 'none';
-            ctx.globalCompositeOperation = 'source-over';
+            ctx.restore();
         }
 
-        // 3. Digital Grain / Noise
+        // 3. Noise/Grain Realista (Criação de textura processual)
         if (c.grain > 0) {
-            ctx.globalAlpha = c.grain * 0.35;
+            ctx.save();
+            ctx.globalAlpha = c.grain * 0.4;
             ctx.globalCompositeOperation = 'overlay';
-            for (let i = 0; i < 400; i++) {
+            // Desenhar grãos de forma eficiente (pequenos pontos aleatórios)
+            for (let i = 0; i < 200; i++) {
                 ctx.fillStyle = Math.random() > 0.5 ? '#fff' : '#000';
                 ctx.fillRect(Math.random() * w, Math.random() * h, 1.5, 1.5);
             }
+            ctx.restore();
         }
 
-        // 4. Aesthetic Tint
-        ctx.globalAlpha = 1.0;
+        // 4. Tint Aesthetic
+        ctx.save();
         ctx.fillStyle = c.tint;
+        ctx.globalAlpha = 1.0;
         ctx.fillRect(0, 0, w, h);
+        ctx.restore();
 
-        // 5. Vintage Date Stamp (Fixed Y2K Style)
+        // 5. Digital Date Stamp (Y2K Estilo)
         const now = new Date();
-        const yearStr = now.getFullYear().toString().slice(-2);
-        const monthStr = (now.getMonth() + 1).toString().padStart(2, '0');
-        const dayStr = now.getDate().toString().padStart(2, '0');
-        const dateString = `'${yearStr} ${monthStr} ${dayStr}`;
-
-        ctx.font = 'bold 36px monospace';
-        ctx.fillStyle = '#facc15'; // Amarelo queimado digital
-        ctx.shadowColor = 'rgba(0,0,0,0.6)';
+        const dateStr = `'${now.getFullYear().toString().slice(-2)} ${ (now.getMonth()+1).toString().padStart(2,'0') } ${ now.getDate().toString().padStart(2,'0') }`;
+        ctx.font = 'bold 32px monospace';
+        ctx.fillStyle = '#facc15'; // Amarelo clássico digital
+        ctx.shadowColor = 'rgba(0,0,0,0.5)';
         ctx.shadowBlur = 4;
-        ctx.fillText(dateString, w - 240, h - 80);
+        ctx.fillText(dateStr, w - 220, h - 80);
         ctx.shadowBlur = 0;
 
         // 6. Optic Vignette
-        const grad = ctx.createRadialGradient(w/2, h/2, w/4, w/2, h/2, w*0.9);
-        grad.addColorStop(0, 'rgba(0,0,0,0)');
-        grad.addColorStop(1, 'rgba(0,0,0,0.4)');
+        const grad = ctx.createRadialGradient(w/2, h/2, w/4, w/2, h/2, w*0.85);
+        grad.addColorStop(0, 'transparent');
+        grad.addColorStop(1, 'rgba(0,0,0,0.35)');
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, w, h);
     };
@@ -165,7 +177,8 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
         if (isOpen && !viewingGallery) startCamera();
         return () => {
             if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
-            if (requestRef.current) cancelAnimationFrame(requestRef.current);
+            if (frameId.current) cancelAnimationFrame(frameId.current);
+            frameId.current = null;
         };
     }, [isOpen, facingMode, viewingGallery, startCamera]);
 
@@ -192,10 +205,11 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
     const executeCapture = () => {
         const canvas = canvasRef.current;
         if (!canvas) return;
-        if (flashMode === 'on') {
-            setShowFlashAnim(true);
-            setTimeout(() => setShowFlashAnim(false), 150);
-        }
+        
+        setShowFlashAnim(true);
+        setTimeout(() => setShowFlashAnim(false), 150);
+
+        // A foto final já contém os efeitos do loop de renderização atual
         const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
         setCapturedImages(prev => [...prev, dataUrl]);
         setIsCounting(false);
@@ -214,7 +228,7 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
         <div className="fixed inset-0 z-[600] bg-black flex flex-col overflow-hidden touch-none h-[100dvh] font-sans text-white">
             {showFlashAnim && <div className="fixed inset-0 bg-white z-[1000] animate-flash-out"></div>}
 
-            {/* HUD SUPERIOR */}
+            {/* HUD SUPERIOR COMPACTO */}
             <header className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-50">
                 <div className="flex gap-2">
                     <button onClick={onClose} className="w-10 h-10 flex items-center justify-center bg-black/40 backdrop-blur-xl rounded-full border border-white/10 active:scale-90 transition-all text-xl">&times;</button>
@@ -236,20 +250,20 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
                 </button>
             </header>
 
-            {/* PREVIEW CONTAINER */}
+            {/* VIEWPORT DA CÂMERA */}
             <div className="flex-grow relative bg-zinc-950 flex items-center justify-center overflow-hidden">
                 {viewingGallery ? (
                     <div className="absolute inset-0 z-[200] bg-black flex flex-col animate-fade-in">
                         <header className="p-4 flex justify-between items-center bg-zinc-900/50 backdrop-blur-xl border-b border-white/5">
-                            <button onClick={() => setViewingGallery(false)} className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Voltar</button>
+                            <button onClick={() => setViewingGallery(false)} className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Câmera</button>
                             <h3 className="text-xs font-black uppercase tracking-widest">{capturedImages.length} Capturas</h3>
                             <button onClick={() => setCapturedImages([])} className="text-red-500 text-[10px] font-black uppercase">Limpar</button>
                         </header>
                         <div className="flex-grow overflow-y-auto grid grid-cols-3 gap-0.5 p-0.5 no-scrollbar">
                             {capturedImages.map((img, i) => (
-                                <div key={i} className="aspect-[3/4] relative group">
+                                <div key={i} className="aspect-[3/4] relative group bg-zinc-900 border border-white/5">
                                     <img src={img} className="w-full h-full object-cover" />
-                                    <a href={img} download={`paradise-${i}.jpg`} className="absolute bottom-2 right-2 bg-white text-black p-2 rounded-full scale-75 opacity-0 group-hover:opacity-100 transition-all shadow-xl">
+                                    <a href={img} download={`paradise-${i}.jpg`} className="absolute bottom-2 right-2 bg-white text-black p-2 rounded-full scale-75 opacity-80 shadow-xl">
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                                     </a>
                                 </div>
@@ -261,10 +275,10 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
                         <video ref={videoRef} className="hidden" />
                         <canvas ref={canvasRef} className="w-full h-full object-cover" />
                         
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-4">
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-50">
                             <button 
                                 onClick={() => setTimer(prev => prev === 0 ? 3 : prev === 3 ? 10 : 0)}
-                                className={`w-10 h-10 rounded-full backdrop-blur-xl border flex items-center justify-center text-[10px] font-black ${timer > 0 ? 'bg-sky-500 border-sky-400' : 'bg-black/40 border-white/10 text-white/40'}`}
+                                className={`w-10 h-10 rounded-full backdrop-blur-xl border flex items-center justify-center text-[10px] font-black transition-all ${timer > 0 ? 'bg-sky-500 border-sky-400' : 'bg-black/40 border-white/10 text-white/40'}`}
                             >
                                 {timer > 0 ? `${timer}s` : '⏲️'}
                             </button>
@@ -273,21 +287,23 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
                 )}
             </div>
 
-            {/* CONSOLE INFERIOR ESTILO STUDIO */}
+            {/* CONTROLES ESTILO CAMSCAM PREMIUM */}
             <footer className="bg-black/95 backdrop-blur-3xl px-4 pb-10 pt-4 border-t border-white/5 z-50">
                 {!viewingGallery ? (
                     <div className="flex flex-col gap-6">
                         
+                        {/* PAINEL DE AJUSTES TÁTIL */}
                         {showAdjustments && (
                             <div className="space-y-5 animate-slide-up bg-zinc-900/60 p-5 rounded-[2.5rem] border border-white/5">
                                 {[
-                                    { label: 'Grain', key: 'grain' as const, max: 1 },
-                                    { label: 'Glow', key: 'glow' as const, max: 1 },
-                                    { label: 'Contrast', key: 'contrast' as const, max: 2, min: 0.5 }
+                                    { label: 'Intensidade Grão', key: 'grain' as const, max: 1 },
+                                    { label: 'Bloom Glow', key: 'glow' as const, max: 1 },
+                                    { label: 'Contraste', key: 'contrast' as const, max: 2, min: 0.5 },
+                                    { label: 'Nitidez (Blur)', key: 'blur' as const, max: 10, min: 0 }
                                 ].map(adj => (
                                     <div key={adj.key} className="space-y-1.5">
                                         <div className="flex justify-between items-center text-[8px] font-black uppercase text-zinc-500 tracking-widest">
-                                            {adj.label} <span className="text-white">{customConfigs[activeVibe][adj.key]}</span>
+                                            {adj.label} <span className="text-white">{(customConfigs[activeVibe][adj.key] * 10).toFixed(1)}</span>
                                         </div>
                                         <input 
                                             type="range" 
@@ -301,26 +317,28 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
                             </div>
                         )}
 
-                        {/* Effects Swiper */}
+                        {/* SELETOR DE EFEITOS HORIZONTAL REATIVO */}
                         <div className="flex gap-4 overflow-x-auto no-scrollbar py-1 snap-x snap-mandatory">
-                            {/* Fix: Added explicit type cast to EffectConfig[] to fix 'unknown' type errors */}
                             {(Object.values(customConfigs) as EffectConfig[]).map((eff) => (
                                 <button
                                     key={eff.id}
-                                    onClick={() => setActiveVibe(eff.id)}
+                                    onClick={() => {
+                                        setActiveVibe(eff.id);
+                                        // Resetar ajustes se mudar de efeito (opcional)
+                                    }}
                                     onContextMenu={(e) => { e.preventDefault(); setShowAdjustments(!showAdjustments); }}
-                                    className={`flex flex-col items-center shrink-0 snap-center transition-all duration-300 ${activeVibe === eff.id ? 'scale-110 opacity-100' : 'scale-90 opacity-25 grayscale'}`}
+                                    className={`flex flex-col items-center shrink-0 snap-center transition-all duration-300 ${activeVibe === eff.id ? 'scale-110 opacity-100' : 'scale-90 opacity-20 grayscale'}`}
                                 >
-                                    <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center border-2 ${activeVibe === eff.id ? 'bg-zinc-900 border-white shadow-[0_0_25px_rgba(255,255,255,0.1)]' : 'bg-zinc-900/50 border-white/5'}`}>
+                                    <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center border-2 transition-colors ${activeVibe === eff.id ? 'bg-zinc-900 border-white shadow-[0_0_25px_rgba(255,255,255,0.15)]' : 'bg-zinc-900/50 border-white/5'}`}>
                                         <span className="text-[7px] font-black uppercase text-white/40 tracking-tighter">{eff.label}</span>
                                         <span className={`text-[8px] font-black uppercase mt-1 tracking-widest ${activeVibe === eff.id ? 'text-white' : 'text-zinc-600'}`}>00{(Object.values(customConfigs) as EffectConfig[]).indexOf(eff)+1}</span>
                                     </div>
-                                    <span className="text-[8px] font-black uppercase mt-2 tracking-tighter text-zinc-500">{eff.name}</span>
+                                    <span className={`text-[8px] font-black uppercase mt-2 tracking-tighter transition-colors ${activeVibe === eff.id ? 'text-white' : 'text-zinc-500'}`}>{eff.name}</span>
                                 </button>
                             ))}
                         </div>
 
-                        {/* Trigger Row */}
+                        {/* DISPARADOR CENTRAL */}
                         <div className="flex items-center justify-between px-6">
                             <button 
                                 onClick={() => setViewingGallery(true)}
@@ -344,7 +362,7 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
 
                             <button 
                                 onClick={() => setShowAdjustments(!showAdjustments)}
-                                className={`w-12 h-12 rounded-2xl flex items-center justify-center border transition-all ${showAdjustments ? 'bg-white text-black border-white' : 'bg-zinc-900 text-white/40 border-white/10'}`}
+                                className={`w-12 h-12 rounded-2xl flex items-center justify-center border transition-all ${showAdjustments ? 'bg-white text-black border-white shadow-lg shadow-white/20' : 'bg-zinc-900 text-white/40 border-white/10'}`}
                             >
                                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
                             </button>
@@ -356,13 +374,13 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
                             onClick={() => { setCapturedImages([]); setViewingGallery(false); }}
                             className="flex-1 py-4 bg-zinc-900 text-zinc-500 text-[10px] font-black uppercase tracking-widest rounded-2xl border border-white/5 active:scale-95"
                         >
-                            Limpar Tudo
+                            Limpar Rolo
                         </button>
                         <button 
                             onClick={() => {
                                 capturedImages.forEach((img, i) => {
                                     const link = document.createElement('a');
-                                    link.download = `neos-vibe-${Date.now()}-${i}.jpg`;
+                                    link.download = `neos-studio-${Date.now()}-${i}.jpg`;
                                     link.href = img;
                                     link.click();
                                 });
