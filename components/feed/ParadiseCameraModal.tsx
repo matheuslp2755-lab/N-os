@@ -6,25 +6,39 @@ interface ParadiseCameraModalProps {
     onClose: () => void;
 }
 
-type VibeEffect = 'disposable' | 'lomo' | 'iso6400' | 'dusty' | 'leak';
+type VibeEffect = 'vhs' | 'ccd' | 'cinema' | 'disposable' | 'noir';
 
 interface VibeConfig {
     id: VibeEffect;
     name: string;
-    icon: string;
+    model: string;
     description: string;
 }
 
 const VIBES: VibeConfig[] = [
-    { id: 'disposable', name: '90s Flash', icon: '📸', description: 'Descartável com carimbo de data' },
-    { id: 'lomo', name: 'Lomo-Fi', icon: '🌈', description: 'Cores vibrantes e cores vazadas' },
-    { id: 'iso6400', name: 'Raw Grain', icon: '🌌', description: 'Ruído estético e tons lavados' },
-    { id: 'dusty', name: 'Dusty Film', icon: '🎞️', description: 'Riscos, poeira e desfoque' },
-    { id: 'leak', name: 'Light Leak', icon: '🔥', description: 'Vazamentos de luz solar' },
+    { id: 'vhs', name: 'VHS-86', model: 'Handycam', description: 'Ruído analógico e linhas de scan' },
+    { id: 'ccd', name: 'CCD-04', model: 'Cyber-Shot', description: 'Estética Y2K e cores digitais' },
+    { id: 'cinema', name: '35mm Pro', model: 'Leica M6', description: 'Grão denso e light leaks' },
+    { id: 'disposable', name: 'QuickSnap', model: 'Fujifilm', description: 'Flash e data retro' },
+    { id: 'noir', name: 'Noir Film', model: 'B&W Film', description: 'Contraste e sujeira de filme' },
 ];
 
+const CameraIcon = ({ type }: { type: VibeEffect }) => {
+    switch (type) {
+        case 'vhs':
+            return <svg className="w-10 h-10" viewBox="0 0 24 24" fill="currentColor"><path d="M4 5v14h16V5H4zm14 12H6V7h12v10zM17 9h-2v2h2V9zm-4 0h-2v2h2V9zM9 9H7v2h2V9z"/></svg>;
+        case 'ccd':
+            return <svg className="w-10 h-10" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm7-8h-2V7h2v2z"/></svg>;
+        case 'cinema':
+            return <svg className="w-10 h-10" viewBox="0 0 24 24" fill="currentColor"><path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/></svg>;
+        case 'disposable':
+            return <svg className="w-10 h-10" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 13c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>;
+        case 'noir':
+            return <svg className="w-10 h-10" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="3.2"/><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>;
+    }
+};
+
 const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClose }) => {
-    const { t } = useLanguage();
     const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
     const [activeVibe, setActiveVibe] = useState<VibeEffect | null>(null);
     const [capturedImage, setCapturedImage] = useState<string | null>(null);
@@ -46,11 +60,7 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
         stopCamera();
         try {
             const constraints = {
-                video: { 
-                    facingMode, 
-                    width: { ideal: 1080 }, 
-                    height: { ideal: 1920 } 
-                }
+                video: { facingMode, width: { ideal: 1080 }, height: { ideal: 1920 } }
             };
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
             streamRef.current = stream;
@@ -68,110 +78,106 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
         return () => stopCamera();
     }, [isOpen, facingMode, capturedImage]);
 
-    const applyAestheticFlaws = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
-        // Preservar a imagem original antes dos filtros
-        const originalData = ctx.getImageData(0, 0, w, h);
+    const applyAestheticEngine = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+        const imageData = ctx.getImageData(0, 0, w, h);
+        const data = imageData.data;
 
-        // 1. ABERRAÇÃO CROMÁTICA (RGB SHIFT) - Sutil nas bordas
-        if (activeVibe === 'lomo' || activeVibe === 'disposable') {
-            const data = originalData.data;
-            const shift = 3;
+        // 1. ABERRAÇÃO CROMÁTICA RADIAL (Lente Vintage)
+        if (activeVibe === 'vhs' || activeVibe === 'cinema') {
+            const shift = activeVibe === 'vhs' ? 8 : 4;
+            const originalData = new Uint8ClampedArray(data);
             for (let i = 0; i < data.length; i += 4) {
-                // Aplica mais nas bordas (radial)
                 const x = (i / 4) % w;
                 const y = Math.floor((i / 4) / w);
-                const dist = Math.sqrt(Math.pow(x - w/2, 2) + Math.pow(y - h/2, 2));
-                const factor = dist / (w/2);
+                const dx = x - w/2;
+                const dy = y - h/2;
+                const dist = Math.sqrt(dx*dx + dy*dy) / (w/2);
                 
-                if (factor > 0.5) {
-                    data[i] = data[i + Math.floor(shift * factor)] || data[i]; 
-                    data[i + 2] = data[i - Math.floor(shift * factor)] || data[i + 2];
+                if (dist > 0.3) {
+                    const offset = Math.floor(shift * dist);
+                    data[i] = originalData[i + offset * 4] || data[i]; // Red
+                    data[i + 2] = originalData[i - offset * 4] || data[i + 2]; // Blue
                 }
             }
-            ctx.putImageData(originalData, 0, 0);
         }
 
-        // 2. CONTRASTE E EXPOSIÇÃO (Evitar pretos 100% fechados)
-        ctx.globalCompositeOperation = 'soft-light';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.08)'; // Levanta levemente as sombras
-        ctx.fillRect(0, 0, w, h);
-        ctx.globalCompositeOperation = 'source-over';
+        ctx.putImageData(imageData, 0, 0);
 
-        // 3. GRÃO E RUÍDO (Simulação de Filme)
+        // 2. EFEITOS DE CAMADA (FILTROS)
         ctx.globalCompositeOperation = 'overlay';
-        const grainOpacity = activeVibe === 'iso6400' ? 0.25 : 0.12;
-        ctx.globalAlpha = grainOpacity;
-        for (let i = 0; i < (activeVibe === 'iso6400' ? 1200 : 600); i++) {
+        
+        // GRÃO DE FILME REALISTA
+        ctx.globalAlpha = activeVibe === 'noir' ? 0.4 : 0.18;
+        for (let i = 0; i < 2000; i++) {
             ctx.fillStyle = Math.random() > 0.5 ? '#fff' : '#000';
             ctx.fillRect(Math.random() * w, Math.random() * h, 1.5, 1.5);
         }
+
+        ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = 1.0;
 
-        // 4. EFEITOS ESPECÍFICOS RECALIBRADOS
         switch (activeVibe) {
-            case 'disposable':
-                ctx.filter = 'saturate(1.1) contrast(0.95) brightness(1.05)';
+            case 'vhs':
+                // Scanlines e ruído de fita
+                ctx.fillStyle = 'rgba(0,0,0,0.1)';
+                for (let i = 0; i < h; i += 4) ctx.fillRect(0, i, w, 1);
+                ctx.filter = 'contrast(1.2) saturate(0.8) brightness(1.1) blur(0.5px)';
+                ctx.drawImage(ctx.canvas, 0, 0);
+                // Data VHS azul
+                ctx.font = 'bold 36px monospace';
+                ctx.fillStyle = '#00f2ff';
+                ctx.fillText('PLAY 00:24:12', 60, h - 120);
+                break;
+
+            case 'ccd':
+                // Bloom e cores lavadas Y2K
+                ctx.globalCompositeOperation = 'screen';
+                ctx.fillStyle = 'rgba(255,255,255,0.15)';
+                ctx.filter = 'blur(15px)';
+                ctx.drawImage(ctx.canvas, 0, 0);
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.filter = 'saturate(1.6) contrast(0.9) brightness(1.1)';
                 ctx.drawImage(ctx.canvas, 0, 0);
                 break;
 
-            case 'lomo':
-                const lomoVin = ctx.createRadialGradient(w/2, h/2, w/5, w/2, h/2, w*0.85);
-                lomoVin.addColorStop(0, 'rgba(0,0,0,0)');
-                lomoVin.addColorStop(1, 'rgba(0,0,0,0.5)'); // Vinheta menos agressiva
-                ctx.fillStyle = lomoVin;
-                ctx.fillRect(0, 0, w, h);
-                ctx.filter = 'saturate(1.4) contrast(1.1)';
-                break;
-
-            case 'iso6400':
-                ctx.globalCompositeOperation = 'lighten';
-                ctx.fillStyle = 'rgba(30, 30, 30, 0.1)'; // Lift blacks
-                ctx.fillRect(0, 0, w, h);
-                ctx.globalCompositeOperation = 'source-over';
-                ctx.filter = 'contrast(0.9) grayscale(0.2)';
-                break;
-
-            case 'dusty':
-                ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-                ctx.lineWidth = 1;
-                for(let i=0; i<3; i++) {
-                    const x = Math.random() * w;
-                    ctx.beginPath();
-                    ctx.moveTo(x, 0);
-                    ctx.lineTo(x + (Math.random()-0.5)*15, h);
-                    ctx.stroke();
-                }
-                // Blur periférico (Centro fica nítido)
-                ctx.filter = 'blur(0.5px)';
-                break;
-
-            case 'leak':
-                const leak = ctx.createLinearGradient(w, 0, w*0.4, h);
-                leak.addColorStop(0, 'rgba(255, 60, 0, 0.3)'); // Leak sutil
-                leak.addColorStop(0.5, 'rgba(255, 30, 0, 0.1)');
-                leak.addColorStop(1, 'rgba(255, 0, 0, 0)');
+            case 'cinema':
+                // Teal & Orange sofisticado + Light Leak
+                const leak = ctx.createRadialGradient(0, 0, 0, 0, 0, w*1.2);
+                leak.addColorStop(0, 'rgba(255, 50, 0, 0.4)');
+                leak.addColorStop(1, 'rgba(0, 0, 0, 0)');
                 ctx.fillStyle = leak;
-                ctx.fillRect(0, 0, w, h);
+                ctx.fillRect(0,0,w,h);
+                ctx.filter = 'contrast(1.1) sepia(0.2) hue-rotate(-10deg)';
+                break;
+
+            case 'disposable':
+                // Flash estourado e carimbo amarela
+                ctx.filter = 'brightness(1.2) contrast(1.1) saturate(1.3)';
+                ctx.drawImage(ctx.canvas, 0, 0);
+                ctx.font = '42px "Courier New", monospace';
+                ctx.fillStyle = '#ffb300';
+                ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                ctx.shadowBlur = 4;
+                ctx.fillText(`'98 08 24`, w - 240, h - 80);
+                break;
+
+            case 'noir':
+                ctx.filter = 'grayscale(1) contrast(1.4) brightness(0.9)';
+                ctx.drawImage(ctx.canvas, 0, 0);
+                // Sujeira de filme (Film Scratches)
+                ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+                for(let i=0; i<3; i++) {
+                    const x = Math.random()*w;
+                    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x+(Math.random()-0.5)*20, h); ctx.stroke();
+                }
                 break;
         }
 
-        // 5. CARIMBO DE DATA ESTÉTICO
-        if (activeVibe === 'disposable' || activeVibe === 'dusty') {
-            ctx.filter = 'none';
-            ctx.font = 'bold 32px "Courier New", monospace';
-            ctx.fillStyle = 'rgba(255, 145, 0, 0.8)';
-            ctx.shadowColor = 'rgba(0,0,0,0.5)';
-            ctx.shadowBlur = 2;
-            const now = new Date();
-            const dateStr = `'${String(now.getFullYear()).slice(-2)} ${String(now.getMonth() + 1).padStart(2, '0')} ${String(now.getDate()).padStart(2, '0')}`;
-            ctx.fillText(dateStr, w - 220, h - 60);
-        }
-
-        // 6. VINHETA DE LENTE (Gradual)
-        const finalVin = ctx.createRadialGradient(w/2, h/2, w/3, w/2, h/2, w);
-        finalVin.addColorStop(0, 'rgba(0,0,0,0)');
-        finalVin.addColorStop(1, 'rgba(0,0,0,0.25)');
-        ctx.fillStyle = finalVin;
+        // VINHETA FINAL (Lente Antiga)
+        const vin = ctx.createRadialGradient(w/2, h/2, w/4, w/2, h/2, w*0.8);
+        vin.addColorStop(0, 'rgba(0,0,0,0)');
+        vin.addColorStop(1, 'rgba(0,0,0,0.4)');
+        ctx.fillStyle = vin;
         ctx.fillRect(0, 0, w, h);
     };
 
@@ -190,16 +196,13 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
 
         if (ctx) {
             ctx.save();
-            if (facingMode === 'user') {
-                ctx.translate(canvas.width, 0);
-                ctx.scale(-1, 1);
-            }
+            if (facingMode === 'user') { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }
             ctx.drawImage(video, 0, 0);
             ctx.restore();
 
-            if (activeVibe) applyAestheticFlaws(ctx, canvas.width, canvas.height);
+            if (activeVibe) applyAestheticEngine(ctx, canvas.width, canvas.height);
 
-            setCapturedImage(canvas.toDataURL('image/jpeg', 0.85));
+            setCapturedImage(canvas.toDataURL('image/jpeg', 0.9));
             setIsProcessing(false);
             stopCamera();
         }
@@ -209,61 +212,44 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
 
     return (
         <div className="fixed inset-0 z-[600] bg-black flex flex-col animate-fade-in overflow-hidden touch-none font-mono">
-            <header className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center z-50">
-                <button onClick={onClose} className="text-white/40 hover:text-white text-4xl font-thin active:scale-90 transition-transform">&times;</button>
+            <header className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center z-50 bg-gradient-to-b from-black/60 to-transparent">
+                <button onClick={onClose} className="text-white/60 hover:text-white text-3xl font-thin active:scale-90 transition-transform">&times;</button>
                 <div className="text-center">
-                    <span className="text-[10px] text-white/40 uppercase tracking-[0.4em] font-black">NÉOS STUDIO</span>
+                    <span className="text-[10px] text-white/50 uppercase tracking-[0.5em] font-black drop-shadow-md">Paradise Cam System</span>
                 </div>
-                <button onClick={() => setFacingMode(p => p === 'user' ? 'environment' : 'user')} className="p-2 text-white/40 active:text-white">
+                <button onClick={() => setFacingMode(p => p === 'user' ? 'environment' : 'user')} className="p-2 text-white/60 active:text-white active:rotate-180 transition-all duration-500">
                     <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                 </button>
             </header>
 
             <div className="flex-grow relative bg-zinc-950 flex items-center justify-center">
                 {!capturedImage ? (
-                    <video 
-                        ref={videoRef} 
-                        autoPlay 
-                        playsInline 
-                        muted 
-                        className="w-full h-full object-cover opacity-80" 
-                        style={facingMode === 'user' ? { transform: 'scaleX(-1)' } : {}}
-                    />
+                    <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover opacity-90 transition-opacity" style={facingMode === 'user' ? { transform: 'scaleX(-1)' } : {}} />
                 ) : (
                     <img src={capturedImage} className="w-full h-full object-contain animate-fade-in" />
                 )}
-                
-                {/* Overlay de Efeito no Preview (Sutil) */}
-                {!capturedImage && activeVibe && (
-                    <div className="absolute inset-0 pointer-events-none border-[40px] border-black/10 mix-blend-overlay"></div>
-                )}
-
                 {showFlash && <div className="absolute inset-0 bg-white z-[100] animate-pulse"></div>}
-                
-                {isProcessing && (
-                    <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-4 z-50">
-                        <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
-                        <p className="text-white text-[9px] font-black uppercase tracking-[0.3em]">Revelando...</p>
-                    </div>
-                )}
+                {isProcessing && <div className="absolute inset-0 bg-black/80 flex items-center justify-center text-white text-[10px] uppercase tracking-[0.5em] animate-pulse">Desenvolvendo Filme...</div>}
             </div>
 
-            <footer className="bg-zinc-950 p-6 z-50 flex flex-col items-center gap-8 border-t border-white/5 safe-bottom">
+            <footer className="bg-zinc-950 p-6 z-50 flex flex-col items-center gap-8 border-t border-white/5 pb-10">
                 {!capturedImage && (
                     <>
-                        {/* Seletor de Efeitos com Swipe Fluido */}
-                        <div className="w-full relative">
-                            <div className="flex gap-5 overflow-x-auto no-scrollbar scroll-smooth px-8 py-2 touch-pan-x" style={{ WebkitOverflowScrolling: 'touch' }}>
+                        <div className="w-full overflow-x-auto no-scrollbar scroll-smooth touch-pan-x">
+                            <div className="flex gap-6 px-10 py-4 min-w-max mx-auto">
                                 {VIBES.map((v) => (
                                     <button
                                         key={v.id}
                                         onClick={() => setActiveVibe(v.id)}
-                                        className={`flex flex-col items-center gap-3 shrink-0 transition-all duration-300 ${activeVibe === v.id ? 'scale-110' : 'opacity-30'}`}
+                                        className={`flex flex-col items-center gap-3 transition-all duration-500 ${activeVibe === v.id ? 'scale-110' : 'opacity-30'}`}
                                     >
-                                        <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center text-3xl border-2 transition-colors ${activeVibe === v.id ? 'border-sky-500 bg-sky-500/10' : 'border-white/10 bg-zinc-900'}`}>
-                                            {v.icon}
+                                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all ${activeVibe === v.id ? 'bg-white text-black shadow-[0_0_40px_rgba(255,255,255,0.4)]' : 'bg-zinc-900 text-zinc-500 border border-white/10'}`}>
+                                            <CameraIcon type={v.id} />
                                         </div>
-                                        <span className="text-[9px] text-white uppercase font-black tracking-tighter whitespace-nowrap">{v.name}</span>
+                                        <div className="flex flex-col items-center">
+                                            <span className="text-[10px] text-white font-black uppercase tracking-tighter">{v.name}</span>
+                                            <span className="text-[7px] text-zinc-600 uppercase font-bold">{v.model}</span>
+                                        </div>
                                     </button>
                                 ))}
                             </div>
@@ -272,9 +258,9 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
                         {activeVibe && (
                             <button 
                                 onClick={handleCapture} 
-                                className="w-20 h-20 rounded-full border-[5px] border-white flex items-center justify-center p-1.5 group active:scale-90 transition-transform shadow-[0_0_30px_rgba(255,255,255,0.2)]"
+                                className="w-20 h-20 rounded-full border-[6px] border-white flex items-center justify-center p-1.5 active:scale-90 transition-all shadow-[0_0_30px_rgba(255,255,255,0.2)]"
                             >
-                                <div className="w-full h-full bg-white rounded-full shadow-inner"></div>
+                                <div className="w-full h-full bg-white rounded-full"></div>
                             </button>
                         )}
                     </>
@@ -282,19 +268,8 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
 
                 {capturedImage && (
                     <div className="flex gap-4 w-full max-w-xs animate-slide-up">
-                        <button 
-                            onClick={() => setCapturedImage(null)} 
-                            className="flex-1 py-5 bg-zinc-900 text-white/60 text-[10px] font-black uppercase tracking-widest rounded-2xl border border-white/5 active:scale-95 transition-all"
-                        >
-                            Refazer
-                        </button>
-                        <a 
-                            href={capturedImage} 
-                            download={`neos-vibe-${Date.now()}.jpg`} 
-                            className="flex-1 py-5 bg-white text-black text-[10px] font-black uppercase tracking-widest rounded-2xl text-center shadow-xl active:scale-95 transition-all"
-                        >
-                            Salvar
-                        </a>
+                        <button onClick={() => setCapturedImage(null)} className="flex-1 py-5 bg-zinc-900 text-white/40 text-[10px] font-black uppercase tracking-widest rounded-2xl border border-white/5 active:scale-95 transition-all">Descartar</button>
+                        <a href={capturedImage} download={`neos-vibe-${Date.now()}.jpg`} className="flex-1 py-5 bg-white text-black text-[10px] font-black uppercase tracking-widest rounded-2xl text-center shadow-xl active:scale-95 transition-all">Salvar Foto</a>
                     </div>
                 )}
             </footer>
@@ -305,10 +280,9 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
                 .no-scrollbar::-webkit-scrollbar { display: none; }
                 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
                 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-                .animate-fade-in { animation: fade-in 0.5s ease-out forwards; }
-                @keyframes slide-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+                .animate-fade-in { animation: fade-in 0.6s ease-out forwards; }
+                @keyframes slide-up { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
                 .animate-slide-up { animation: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-                .safe-bottom { padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)); }
             `}</style>
         </div>
     );
