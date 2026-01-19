@@ -91,7 +91,7 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
             ctx.save();
             ctx.globalAlpha = config.glow * 0.5;
             ctx.globalCompositeOperation = 'screen';
-            ctx.filter = `blur(${20 * config.glow}px) brightness(1.3)`;
+            ctx.filter = `blur(${Math.max(1, w * 0.015 * config.glow)}px) brightness(1.3)`;
             ctx.drawImage(ctx.canvas, 0, 0);
             ctx.restore();
         }
@@ -101,9 +101,10 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
             ctx.save();
             ctx.globalAlpha = config.grain * 0.35;
             ctx.globalCompositeOperation = 'overlay';
-            for (let i = 0; i < 300; i++) {
+            const grainDensity = Math.floor((w * h) / 7000);
+            for (let i = 0; i < grainDensity; i++) {
                 ctx.fillStyle = Math.random() > 0.5 ? '#fff' : '#000';
-                ctx.fillRect(Math.random() * w, Math.random() * h, 1.5, 1.5);
+                ctx.fillRect(Math.random() * w, Math.random() * h, w * 0.001, w * 0.001);
             }
             ctx.restore();
         }
@@ -115,24 +116,27 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
         ctx.fillRect(0, 0, w, h);
         ctx.restore();
 
-        // 5. Final Identity (ONLY ON CAPTURE)
+        // 5. Final Identity (RESPONSIVE)
         if (isFinal) {
             const now = new Date();
             const dateStr = `${now.getDate().toString().padStart(2, '0')}.${(now.getMonth() + 1).toString().padStart(2, '0')}.${now.getFullYear()}`;
             
+            const baseFontSize = w * 0.04; // 4% da largura da imagem
+            const padding = w * 0.05; // 5% da largura da imagem
+
             // Retro Yellow Date
             ctx.save();
-            ctx.font = 'bold 42px monospace';
-            ctx.fillStyle = '#facc15'; // Classic Digital Camera Yellow
+            ctx.font = `bold ${baseFontSize}px monospace`;
+            ctx.fillStyle = '#facc15';
             ctx.shadowColor = 'rgba(0,0,0,0.8)';
-            ctx.shadowBlur = 8;
-            ctx.fillText(dateStr, 60, h - 80);
+            ctx.shadowBlur = baseFontSize * 0.2;
+            ctx.fillText(dateStr, padding, h - padding);
             
             // Watermark Néos
-            ctx.font = 'italic 32px sans-serif';
+            ctx.font = `italic ${baseFontSize * 0.8}px sans-serif`;
             ctx.fillStyle = 'rgba(255,255,255,0.4)';
             ctx.textAlign = 'right';
-            ctx.fillText('Néos', w - 60, h - 80);
+            ctx.fillText('Néos', w - padding, h - padding);
             ctx.restore();
         }
 
@@ -167,6 +171,7 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
             ctx.drawImage(video, 0, 0, vw, vh);
             ctx.restore();
 
+            // Preview agora recebe os filtros em tempo real
             applyAestheticPipeline(ctx, vw, vh, PRESETS[activeVibe], false);
         }
         requestRef.current = requestAnimationFrame(renderLoop);
@@ -202,7 +207,6 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
         setShowFlashAnim(true);
         setTimeout(() => setShowFlashAnim(false), 150);
 
-        // Calculate Real Crop based on Lens
         const zoom = getZoomFactor(lensMM);
         const vw = canvas.width;
         const vh = canvas.height;
@@ -217,9 +221,9 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
         const outCtx = outputCanvas.getContext('2d');
         
         if (outCtx) {
-            // Transfer rendered content with crop
+            // A captura final será idêntica ao que o preview estava renderizando no canvasRef
             outCtx.drawImage(canvas, cx, cy, cropW, cropH, 0, 0, cropW, cropH);
-            // Apply Final Identity (Watermark + Date)
+            // Aplica Marca d'água e Data proporcionalmente ao recorte final
             applyAestheticPipeline(outCtx, cropW, cropH, PRESETS[activeVibe], true);
         }
 
@@ -234,7 +238,6 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
         <div className="fixed inset-0 z-[600] bg-black flex flex-col overflow-hidden touch-none h-[100dvh] font-sans text-white">
             {showFlashAnim && <div className="fixed inset-0 bg-white z-[1000] animate-flash-out"></div>}
 
-            {/* TOP BAR */}
             <header className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-50 bg-gradient-to-b from-black/40 to-transparent">
                 <button onClick={onClose} className="w-10 h-10 flex items-center justify-center bg-black/20 backdrop-blur-xl rounded-full border border-white/10 active:scale-90 transition-all text-xl font-thin">&times;</button>
                 
@@ -266,7 +269,6 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
                 </div>
             </header>
 
-            {/* PREVIEW */}
             <div className="flex-grow relative bg-zinc-950 flex items-center justify-center overflow-hidden">
                 {viewingGallery ? (
                     <div className="absolute inset-0 z-[200] bg-black flex flex-col animate-fade-in">
@@ -288,7 +290,6 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
                         <video ref={videoRef} className="hidden" />
                         <canvas ref={canvasRef} className="w-full h-full object-cover" />
                         
-                        {/* DYNAMIC FRAME OVERLAY */}
                         <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
                             <div 
                                 className="border-[0.5px] border-white/40 transition-all duration-700 ease-out relative rounded-2xl"
@@ -309,7 +310,6 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
                 )}
             </div>
 
-            {/* FULL SCREEN VIEWER */}
             {fullScreenImage && (
                 <div className="fixed inset-0 z-[300] bg-black flex flex-col animate-fade-in">
                     <header className="p-6 flex justify-between items-center z-10">
@@ -332,11 +332,9 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
                 </div>
             )}
 
-            {/* CONTROLS */}
             <footer className="bg-black px-4 pb-12 pt-6 border-t border-white/5 z-50">
                 {!viewingGallery ? (
                     <div className="flex flex-col gap-8">
-                        {/* Effects Swipe */}
                         <div className="flex gap-4 overflow-x-auto no-scrollbar py-1 snap-x snap-mandatory">
                             {(Object.values(PRESETS)).map((eff) => (
                                 <button
@@ -353,7 +351,6 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
                             ))}
                         </div>
 
-                        {/* Capture Trigger */}
                         <div className="flex items-center justify-between px-8">
                             <button 
                                 onClick={() => setViewingGallery(true)}
