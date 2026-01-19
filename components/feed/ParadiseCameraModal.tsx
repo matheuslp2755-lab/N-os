@@ -1,13 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { auth, db, doc, updateDoc, serverTimestamp } from '../../firebase';
-import Button from '../common/Button';
 
 interface ParadiseCameraModalProps {
     isOpen: boolean;
     onClose: () => void;
 }
 
-type VibeEffect = 'memory' | 'analog2k' | 'cybershot' | 'filmsad' | 'vhs' | 'noir' | 'retro';
+type VibeEffect = 'cybershot' | 'memory' | 'analog2k' | 'filmsad' | 'vhs' | 'noir' | 'retro';
 type LensDistance = '20cm' | '30cm' | '50cm' | 'auto';
 
 interface VibeConfig {
@@ -51,6 +50,7 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
     const requestRef = useRef<number>(null);
+    const lastBrightnessRef = useRef<number>(0);
 
     const aestheticParams = useRef({ light, color, grain, focus, activeVibe, facingMode, activeLens, flashMode });
     
@@ -73,7 +73,7 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
         }
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } }
+                video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }
             });
             streamRef.current = stream;
             if (videoRef.current) {
@@ -108,9 +108,31 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
             ctx.drawImage(video, 0, 0, w, h);
             ctx.restore();
 
+            // Detecção de Palma (Simulada por mudança brusca de brilho/bloqueio central)
+            if (handDetectionEnabled && !isCounting && !viewingGallery) {
+                detectHandGesture(ctx, w, h);
+            }
+
             applyAnalogAesthetics(ctx, w, h, params);
         }
         requestRef.current = requestAnimationFrame(renderLoop);
+    };
+
+    const detectHandGesture = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+        const scanW = 100;
+        const scanH = 100;
+        const imageData = ctx.getImageData(w/2 - 50, h/2 - 50, scanW, scanH);
+        let brightness = 0;
+        for (let i = 0; i < imageData.data.length; i += 4) {
+            brightness += (imageData.data[i] + imageData.data[i+1] + imageData.data[i+2]) / 3;
+        }
+        const avgBrightness = brightness / (scanW * scanH);
+        
+        // Se houver uma mudança súbita de luz (mão cobrindo a lente parcialmente ou refletindo luz)
+        if (lastBrightnessRef.current > 0 && Math.abs(avgBrightness - lastBrightnessRef.current) > 60) {
+            handleCapture();
+        }
+        lastBrightnessRef.current = avgBrightness;
     };
 
     const applyAnalogAesthetics = (ctx: CanvasRenderingContext2D, w: number, h: number, p: any) => {
@@ -147,15 +169,10 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
             ctx.drawImage(tempCanvas, 0, 0);
         }
 
-        if (tintOpacity > 0) {
-            ctx.fillStyle = tintColor; ctx.globalAlpha = tintOpacity;
-            ctx.fillRect(0, 0, w, h); ctx.globalAlpha = 1.0;
-        }
-
         if (p.grain > 0) {
             ctx.globalAlpha = p.grain * 0.4;
             ctx.globalCompositeOperation = 'overlay';
-            for (let i = 0; i < 400; i++) {
+            for (let i = 0; i < 200; i++) {
                 ctx.fillStyle = Math.random() > 0.5 ? '#fff' : '#000';
                 ctx.fillRect(Math.random() * w, Math.random() * h, 2, 2);
             }
@@ -165,10 +182,6 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
         const vin = ctx.createRadialGradient(w/2, h/2, w/4, w/2, h/2, w*0.95);
         vin.addColorStop(0, 'rgba(0,0,0,0)'); vin.addColorStop(1, 'rgba(0,0,0,0.5)');
         ctx.fillStyle = vin; ctx.fillRect(0, 0, w, h);
-
-        ctx.font = 'bold 24px sans-serif';
-        ctx.fillStyle = 'rgba(255,255,255,0.3)';
-        ctx.fillText('NÉOS PARADISE', 50, 80);
     };
 
     useEffect(() => {
@@ -181,10 +194,11 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
 
     const handleCapture = () => {
         if (isCounting) return;
+        const actualCountdown = countdown || (handDetectionEnabled ? 3 : 0);
 
-        if (countdown > 0) {
+        if (actualCountdown > 0) {
             setIsCounting(true);
-            setCurrentCount(countdown);
+            setCurrentCount(actualCountdown);
             const timer = setInterval(() => {
                 setCurrentCount(prev => {
                     if (prev <= 1) {
@@ -209,7 +223,7 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
             setTimeout(() => setShowFlashAnim(false), 150);
         }
 
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
         setCapturedImages(prev => [...prev, dataUrl]);
         setIsCounting(false);
     };
@@ -217,78 +231,54 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[600] bg-black flex flex-col animate-fade-in overflow-hidden touch-none font-sans">
-            {/* Flash Animation Layer */}
+        <div className="fixed inset-0 z-[600] bg-black flex flex-col animate-fade-in overflow-hidden touch-none font-sans h-[100dvh]">
             {showFlashAnim && <div className="fixed inset-0 bg-white z-[1000] animate-flash-out"></div>}
 
-            {/* Top HUD */}
-            <header className="absolute top-0 left-0 right-0 p-6 flex justify-between items-start z-50 pointer-events-none">
-                <div className="flex flex-col gap-4 pointer-events-auto">
-                    <button onClick={onClose} className="w-12 h-12 flex items-center justify-center bg-black/40 backdrop-blur-xl rounded-full border border-white/10 text-white shadow-xl">&times;</button>
+            {/* HUD SUPERIOR COMPACTO */}
+            <header className="absolute top-0 left-0 right-0 p-3 sm:p-6 flex justify-between items-center z-50">
+                <div className="flex gap-2">
+                    <button onClick={onClose} className="w-10 h-10 flex items-center justify-center bg-black/40 backdrop-blur-md rounded-full border border-white/10 text-white">&times;</button>
                     <button 
                         onClick={() => setFlashMode(prev => prev === 'off' ? 'on' : prev === 'on' ? 'auto' : 'off')}
-                        className={`w-12 h-12 flex items-center justify-center backdrop-blur-xl rounded-full border border-white/10 transition-all ${flashMode !== 'off' ? 'bg-amber-400 text-black border-amber-300' : 'bg-black/40 text-white/60'}`}
+                        className={`w-10 h-10 flex items-center justify-center backdrop-blur-md rounded-full border border-white/10 transition-all ${flashMode !== 'off' ? 'bg-amber-400 text-black' : 'bg-black/40 text-white/60'}`}
                     >
-                        {flashMode === 'off' && <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m0 0L21 21" /></svg>}
-                        {flashMode === 'on' && <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
-                        {flashMode === 'auto' && <span className="text-[9px] font-black">AUTO</span>}
+                        {flashMode === 'off' ? '✕' : flashMode === 'on' ? '⚡' : 'A'}
                     </button>
                 </div>
                 
-                <div className="flex flex-col items-center gap-2 pointer-events-auto">
-                    <div className="bg-black/60 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/10 flex items-center gap-2">
-                        <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_#ef4444]"></div>
-                        <span className="text-[10px] text-white font-black uppercase tracking-[0.2em]">Paradise</span>
+                {isCounting && (
+                    <div className="text-5xl font-black text-white italic drop-shadow-xl animate-pulse">
+                        {currentCount}
                     </div>
-                    {isCounting && (
-                        <div className="text-6xl font-black text-white italic drop-shadow-[0_0_20px_rgba(0,0,0,0.5)] animate-bounce">
-                            {currentCount}
-                        </div>
-                    )}
-                </div>
+                )}
 
-                <div className="flex flex-col gap-4 pointer-events-auto">
-                    <button onClick={() => setFacingMode(p => p === 'user' ? 'environment' : 'user')} className="w-12 h-12 flex items-center justify-center bg-black/40 backdrop-blur-xl rounded-full border border-white/10 text-white active:rotate-180 transition-all duration-500">
+                <div className="flex gap-2">
+                    <button onClick={() => setFacingMode(p => p === 'user' ? 'environment' : 'user')} className="w-10 h-10 flex items-center justify-center bg-black/40 backdrop-blur-md rounded-full border border-white/10 text-white">
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                     </button>
                     <button 
-                        onClick={() => setCountdown(prev => prev === 0 ? 3 : prev === 3 ? 10 : 0)}
-                        className={`w-12 h-12 flex items-center justify-center backdrop-blur-xl rounded-full border border-white/10 transition-all ${countdown > 0 ? 'bg-sky-500 text-white' : 'bg-black/40 text-white/60'}`}
-                    >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        {countdown > 0 && <span className="absolute -bottom-1 -right-1 bg-white text-black text-[8px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-sky-500">{countdown}s</span>}
-                    </button>
-                    <button 
                         onClick={() => setHandDetectionEnabled(!handDetectionEnabled)}
-                        className={`w-12 h-12 flex items-center justify-center backdrop-blur-xl rounded-full border border-white/10 transition-all ${handDetectionEnabled ? 'bg-green-500 text-white' : 'bg-black/40 text-white/60'}`}
-                        title="Captura por Palma da Mão"
+                        className={`w-10 h-10 flex items-center justify-center backdrop-blur-md rounded-full border border-white/10 transition-all ${handDetectionEnabled ? 'bg-green-500 text-white' : 'bg-black/40 text-white/60'}`}
                     >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0V12m3.024-3.5a1.5 1.5 0 113 0V12m3 1V9a1.5 1.5 0 113 0v5a7 7 0 11-14 0V9a1.5 1.5 0 113 0v2.5" /></svg>
+                        ✋
                     </button>
                 </div>
             </header>
 
-            {/* Main Viewport */}
-            <div className="flex-grow relative bg-zinc-950 flex items-center justify-center">
+            {/* VIEWPORT */}
+            <div className="flex-grow relative bg-zinc-950 flex items-center justify-center overflow-hidden">
                 {viewingGallery ? (
                     <div className="absolute inset-0 z-[200] bg-black flex flex-col animate-fade-in">
-                        <header className="p-6 flex justify-between items-center bg-zinc-900 border-b border-white/5">
+                        <header className="p-4 flex justify-between items-center bg-zinc-900 border-b border-white/5">
                             <button onClick={() => setViewingGallery(false)} className="text-white font-black uppercase text-[10px] tracking-widest">Voltar</button>
-                            <h3 className="text-white font-black text-xs uppercase tracking-widest">Sessão: {capturedImages.length} fotos</h3>
-                            <div className="w-10"></div>
+                            <h3 className="text-white font-black text-xs uppercase tracking-widest">{capturedImages.length} fotos</h3>
+                            <button onClick={() => setCapturedImages([])} className="text-red-500 text-[10px] font-black uppercase tracking-widest">Limpar</button>
                         </header>
-                        <div className="flex-grow overflow-y-auto p-4 grid grid-cols-2 gap-4 no-scrollbar">
+                        <div className="flex-grow overflow-y-auto p-2 grid grid-cols-3 gap-1 no-scrollbar">
                             {capturedImages.map((img, i) => (
-                                <div key={i} className="relative group rounded-3xl overflow-hidden shadow-2xl border border-white/10">
+                                <div key={i} className="aspect-[3/4] relative rounded-lg overflow-hidden border border-white/5">
                                     <img src={img} className="w-full h-full object-cover" />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center pb-4 gap-3">
-                                        <a href={img} download={`paradise-${i}.jpg`} className="bg-white text-black p-3 rounded-2xl scale-90 hover:scale-100 transition-transform">
-                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                                        </a>
-                                        <button onClick={() => setCapturedImages(prev => prev.filter((_, idx) => idx !== i))} className="bg-red-500 text-white p-3 rounded-2xl scale-90 hover:scale-100 transition-transform">
-                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                        </button>
-                                    </div>
+                                    <button onClick={() => setCapturedImages(prev => prev.filter((_, idx) => idx !== i))} className="absolute top-1 right-1 bg-black/50 text-white w-5 h-5 rounded-full text-[10px]">&times;</button>
                                 </div>
                             ))}
                         </div>
@@ -298,125 +288,109 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
                         <video ref={videoRef} className="hidden" />
                         <canvas ref={canvasRef} className="w-full h-full object-cover" />
                         
-                        {/* Sidebar: Focus Presets */}
-                        <div className="absolute right-6 top-[40%] -translate-y-1/2 flex flex-col gap-4 z-50">
+                        {/* LENTES LATERAIS COMPACTAS */}
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-50 scale-90">
                             {(['20cm', '30cm', '50cm', 'auto'] as LensDistance[]).map(lens => (
                                 <button 
                                     key={lens}
                                     onClick={() => setActiveLens(lens)}
-                                    className={`w-12 h-12 rounded-full backdrop-blur-xl border flex flex-col items-center justify-center transition-all ${activeLens === lens ? 'bg-white text-black border-white shadow-[0_0_25px_rgba(255,255,255,0.4)] scale-110' : 'bg-black/30 text-white/40 border-white/10'}`}
+                                    className={`w-9 h-9 rounded-full backdrop-blur-md border flex items-center justify-center transition-all ${activeLens === lens ? 'bg-white text-black border-white' : 'bg-black/40 text-white/40 border-white/5'}`}
                                 >
-                                    <span className="text-[7px] font-black uppercase tracking-tighter">{lens}</span>
-                                    <div className={`w-1 h-1 rounded-full mt-1 ${activeLens === lens ? 'bg-black' : 'bg-white/20'}`}></div>
+                                    <span className="text-[7px] font-black">{lens}</span>
                                 </button>
                             ))}
-                        </div>
-
-                        {/* Hand Detection Simulation Prompt */}
-                        {handDetectionEnabled && !isCounting && (
-                            <div 
-                                onClick={handleCapture}
-                                className="absolute inset-0 z-40 bg-green-500/10 flex items-center justify-center group cursor-pointer"
+                            <button 
+                                onClick={() => setCountdown(prev => prev === 0 ? 3 : prev === 3 ? 10 : 0)}
+                                className={`w-9 h-9 mt-4 rounded-full backdrop-blur-md border flex items-center justify-center ${countdown > 0 ? 'bg-sky-500 text-white' : 'bg-black/40 text-white/40 border-white/5'}`}
                             >
-                                <div className="bg-black/40 backdrop-blur-xl p-8 rounded-[3rem] border border-green-500/30 text-center animate-pulse group-hover:scale-105 transition-transform">
-                                    <svg className="w-20 h-20 text-green-500 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><path d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0V12m3.024-3.5a1.5 1.5 0 113 0V12m3 1V9a1.5 1.5 0 113 0v5a7 7 0 11-14 0V9a1.5 1.5 0 113 0v2.5" /></svg>
-                                    <p className="text-white font-black uppercase text-xs tracking-widest">Mostre a palma da mão</p>
-                                    <p className="text-green-500/60 text-[9px] font-bold uppercase mt-2">(Clique simulado ativado)</p>
-                                </div>
-                            </div>
-                        )}
+                                <span className="text-[8px] font-black">{countdown || '⏱'}</span>
+                            </button>
+                        </div>
                     </>
                 )}
             </div>
 
-            {/* Bottom Console */}
-            <footer className="bg-zinc-950 pt-4 pb-12 px-6 z-50 flex flex-col items-center gap-6 border-t border-white/5 relative">
+            {/* CONSOLE INFERIOR AJUSTADO PARA MOBILE */}
+            <footer className="bg-zinc-950 px-4 pb-8 pt-2 z-50 border-t border-white/5">
                 {!viewingGallery ? (
-                    <>
-                        <button 
-                            onClick={() => setShowAdjustments(!showAdjustments)} 
-                            className={`absolute -top-16 right-6 w-12 h-12 flex items-center justify-center backdrop-blur-3xl rounded-2xl border transition-all z-[100] shadow-2xl ${showAdjustments ? 'bg-sky-500 text-white border-sky-400 scale-110' : 'bg-white/10 text-white/80 border-white/20'}`}
-                        >
-                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
-                        </button>
+                    <div className="flex flex-col gap-4">
+                        {/* BOTÕES DE EDIÇÃO */}
+                        <div className="flex justify-between items-center px-2">
+                             <button 
+                                onClick={() => setShowAdjustments(!showAdjustments)} 
+                                className={`text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full border transition-all ${showAdjustments ? 'bg-sky-500 text-white border-sky-400' : 'bg-zinc-900 text-zinc-500 border-zinc-800'}`}
+                            >
+                                Ajustes
+                            </button>
+                            <span className="text-[8px] text-zinc-600 font-black uppercase tracking-[0.2em]">Paradise Lenses</span>
+                        </div>
 
                         {showAdjustments && (
-                            <div className="w-full bg-zinc-900/80 backdrop-blur-3xl p-6 rounded-[2.5rem] border border-white/10 animate-slide-up mb-2">
-                                <div className="grid grid-cols-2 gap-x-8 gap-y-6">
-                                    <div className="space-y-2">
-                                        <span className="text-[9px] font-black text-white/50 uppercase tracking-widest block">Brilho</span>
-                                        <input type="range" min="0.5" max="1.5" step="0.01" value={light} onChange={e => setLight(parseFloat(e.target.value))} className="accent-white h-1 w-full appearance-none bg-white/10 rounded-full" />
+                            <div className="bg-zinc-900/90 backdrop-blur-xl p-4 rounded-3xl border border-white/5 animate-slide-up mb-2">
+                                <div className="grid grid-cols-1 gap-4">
+                                    <div className="flex items-center gap-4">
+                                        <span className="text-[8px] font-black text-white/40 uppercase w-8">Luz</span>
+                                        <input type="range" min="0.5" max="1.5" step="0.01" value={light} onChange={e => setLight(parseFloat(e.target.value))} className="accent-white h-1 flex-grow appearance-none bg-white/10 rounded-full" />
                                     </div>
-                                    <div className="space-y-2">
-                                        <span className="text-[9px] font-black text-white/50 uppercase tracking-widest block">Grão</span>
-                                        <input type="range" min="0" max="1" step="0.01" value={grain} onChange={e => setGrain(parseFloat(e.target.value))} className="accent-zinc-400 h-1 w-full appearance-none bg-white/10 rounded-full" />
+                                    <div className="flex items-center gap-4">
+                                        <span className="text-[8px] font-black text-white/40 uppercase w-8">Grão</span>
+                                        <input type="range" min="0" max="1" step="0.01" value={grain} onChange={e => setGrain(parseFloat(e.target.value))} className="accent-zinc-400 h-1 flex-grow appearance-none bg-white/10 rounded-full" />
                                     </div>
                                 </div>
                             </div>
                         )}
 
-                        <div className="w-full relative overflow-hidden">
-                            <div className="flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory px-12 py-2 touch-pan-x">
-                                {VIBES.map((v) => (
-                                    <button
-                                        key={v.id}
-                                        onClick={() => setActiveVibe(v.id)}
-                                        className={`flex flex-col items-center gap-3 shrink-0 snap-center transition-all duration-500 ${activeVibe === v.id ? 'scale-110' : 'opacity-30 grayscale blur-[0.5px]'}`}
-                                    >
-                                        <div className={`w-20 h-24 rounded-[2.2rem] flex flex-col items-center justify-center border-2 transition-all ${activeVibe === v.id ? 'bg-zinc-900 border-white shadow-[0_0_40px_rgba(255,255,255,0.15)]' : 'bg-zinc-900/50 border-white/5'}`}>
-                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-zinc-700 to-black flex items-center justify-center shadow-inner text-white/60">
-                                                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>
-                                            </div>
-                                            <span className={`text-[8px] font-black uppercase tracking-tighter mt-3 ${activeVibe === v.id ? 'text-white' : 'text-zinc-600'}`}>{v.label}</span>
-                                        </div>
-                                        <span className={`text-[9px] font-black uppercase tracking-widest block ${activeVibe === v.id ? v.color : 'text-zinc-700'}`}>{v.name}</span>
-                                    </button>
-                                ))}
-                            </div>
+                        {/* LISTA DE VIBES COMPACTA */}
+                        <div className="flex gap-3 overflow-x-auto no-scrollbar py-2 px-1">
+                            {VIBES.map((v) => (
+                                <button
+                                    key={v.id}
+                                    onClick={() => setActiveVibe(v.id)}
+                                    className={`flex flex-col items-center shrink-0 transition-all ${activeVibe === v.id ? 'scale-100 opacity-100' : 'scale-90 opacity-30 grayscale'}`}
+                                >
+                                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border-2 ${activeVibe === v.id ? 'bg-zinc-900 border-white' : 'bg-zinc-900/50 border-white/5'}`}>
+                                        <span className="text-xl">📸</span>
+                                    </div>
+                                    <span className="text-[7px] font-black uppercase mt-1 text-white truncate w-14 text-center">{v.name}</span>
+                                </button>
+                            ))}
                         </div>
 
-                        {/* Capture Controls */}
-                        <div className="flex items-center gap-10">
+                        {/* DISPARADOR E GALERIA */}
+                        <div className="flex items-center justify-center gap-12 pt-2">
                             <button 
                                 onClick={() => setViewingGallery(true)}
-                                className="relative w-14 h-14 rounded-2xl overflow-hidden border-2 border-white/20 active:scale-90 transition-all bg-zinc-900"
+                                className="w-12 h-12 rounded-2xl bg-zinc-900 border border-white/10 overflow-hidden flex items-center justify-center"
                             >
                                 {capturedImages.length > 0 ? (
-                                    <>
-                                        <img src={capturedImages[capturedImages.length - 1]} className="w-full h-full object-cover" />
-                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                                            <span className="text-white text-xs font-black">{capturedImages.length}</span>
-                                        </div>
-                                    </>
+                                    <img src={capturedImages[capturedImages.length - 1]} className="w-full h-full object-cover opacity-50" />
                                 ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-white/20">
-                                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                    </div>
+                                    <span className="text-zinc-700 text-lg">🖼️</span>
                                 )}
                             </button>
 
                             <button 
                                 onClick={handleCapture} 
                                 disabled={isCounting}
-                                className="w-24 h-24 rounded-full border-2 border-white/20 flex items-center justify-center p-2 group active:scale-95 transition-all shadow-[0_0_50px_rgba(255,255,255,0.1)] disabled:opacity-50"
+                                className="w-20 h-20 rounded-full border-4 border-white/20 flex items-center justify-center p-1.5 active:scale-90 transition-all disabled:opacity-50"
                             >
                                 <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
-                                    <div className={`w-16 h-16 rounded-full border-2 border-black/5 ${isCounting ? 'animate-ping' : ''}`}></div>
+                                    <div className={`w-14 h-14 rounded-full border border-black/5 ${isCounting ? 'animate-ping' : ''}`}></div>
                                 </div>
                             </button>
 
-                            <button className="w-14 h-14 flex items-center justify-center bg-white/10 rounded-2xl text-white opacity-40">
-                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" /></svg>
+                            <button onClick={onClose} className="w-12 h-12 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-white/30">
+                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M6 18L18 6M6 6l12 12" strokeWidth={2}/></svg>
                             </button>
                         </div>
-                    </>
+                    </div>
                 ) : (
-                    <div className="flex gap-4 w-full max-w-sm animate-slide-up py-4">
+                    <div className="flex gap-3 w-full animate-slide-up">
                         <button 
                             onClick={() => { setCapturedImages([]); setViewingGallery(false); }} 
-                            className="flex-1 py-5 bg-zinc-900 text-white/40 text-[10px] font-black uppercase tracking-[0.3em] rounded-[2rem] border border-white/5 active:scale-95"
+                            className="flex-1 py-4 bg-zinc-900 text-white/40 text-[9px] font-black uppercase tracking-widest rounded-2xl border border-white/5"
                         >
-                            Descartar Tudo
+                            Reset
                         </button>
                         <button 
                             onClick={() => {
@@ -428,9 +402,9 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
                                 });
                                 onClose();
                             }}
-                            className="flex-1 py-5 bg-white text-black text-[10px] font-black uppercase tracking-[0.3em] rounded-[2rem] text-center shadow-2xl active:scale-95"
+                            className="flex-1 py-4 bg-white text-black text-[9px] font-black uppercase tracking-widest rounded-2xl shadow-xl"
                         >
-                            Exportar Todas
+                            Salvar {capturedImages.length} Fotos
                         </button>
                     </div>
                 )}
@@ -439,17 +413,15 @@ const ParadiseCameraModal: React.FC<ParadiseCameraModalProps> = ({ isOpen, onClo
             <style>{`
                 .no-scrollbar::-webkit-scrollbar { display: none; }
                 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-                @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-                .animate-fade-in { animation: fade-in 0.6s cubic-bezier(0.23, 1, 0.32, 1) forwards; }
-                @keyframes slide-up { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
-                .animate-slide-up { animation: slide-up 0.5s cubic-bezier(0.23, 1, 0.32, 1) forwards; }
                 @keyframes flash-out { 0% { opacity: 1; } 100% { opacity: 0; } }
-                .animate-flash-out { animation: flash-out 0.8s ease-out forwards; }
+                .animate-flash-out { animation: flash-out 0.6s ease-out forwards; }
+                @keyframes slide-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+                .animate-slide-up { animation: slide-up 0.4s cubic-bezier(0.23, 1, 0.32, 1) forwards; }
                 input[type=range]::-webkit-slider-thumb {
                     -webkit-appearance: none;
-                    height: 20px; width: 20px;
+                    height: 16px; width: 16px;
                     border-radius: 50%; background: white;
-                    cursor: pointer; box-shadow: 0 0 15px rgba(0,0,0,0.4); border: 2px solid #000;
+                    box-shadow: 0 0 10px rgba(0,0,0,0.5);
                 }
             `}</style>
         </div>
