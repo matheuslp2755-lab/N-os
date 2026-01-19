@@ -15,6 +15,7 @@ import VibeBrowser from './browser/VibeBrowser';
 import CreateMenuModal from './feed/CreateMenuModal';
 import VibeBeamModal from './feed/VibeBeamModal';
 import WeatherBanner from './feed/WeatherBanner';
+import ParadiseCameraModal from './feed/ParadiseCameraModal';
 import { auth, db, collection, query, onSnapshot, orderBy, getDocs, where, doc, getDoc, limit, deleteDoc, updateDoc, increment, serverTimestamp } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -31,6 +32,7 @@ const Feed: React.FC = () => {
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
   const [isCreatePulseOpen, setIsCreatePulseOpen] = useState(false);
   const [isCreateVibeOpen, setIsCreateVibeOpen] = useState(false);
+  const [isParadiseOpen, setIsParadiseOpen] = useState(false);
   const [isMessagesOpen, setIsMessagesOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isBrowserOpen, setIsBrowserOpen] = useState(false);
@@ -165,11 +167,12 @@ const Feed: React.FC = () => {
     setViewMode('profile');
   };
 
-  const handleMenuSelect = (type: 'post' | 'pulse' | 'vibe') => {
+  const handleMenuSelect = (type: 'post' | 'pulse' | 'vibe' | 'paradise') => {
     switch (type) {
         case 'post': setIsGalleryOpen(true); break;
         case 'pulse': setIsCreatePulseOpen(true); break;
         case 'vibe': setIsCreateVibeOpen(true); break;
+        case 'paradise': setIsParadiseOpen(true); break;
     }
   };
 
@@ -280,6 +283,7 @@ const Feed: React.FC = () => {
       <CreatePostModal isOpen={isCreatePostOpen} onClose={() => setIsCreatePostOpen(false)} onPostCreated={() => setIsCreatePostOpen(false)} initialImages={selectedMedia} />
       <CreatePulseModal isOpen={isCreatePulseOpen} onClose={() => setIsCreatePulseOpen(false)} onPulseCreated={() => setIsCreatePulseOpen(false)} />
       <CreateVibeModal isOpen={isCreateVibeOpen} onClose={() => setIsCreateVibeOpen(false)} onVibeCreated={() => setIsCreateVibeOpen(false)} />
+      <ParadiseCameraModal isOpen={isParadiseOpen} onClose={() => setIsParadiseOpen(false)} />
       <MessagesModal isOpen={isMessagesOpen} onClose={() => setIsMessagesOpen(false)} initialTargetUser={targetUserForMessages} initialConversationId={targetConversationId} />
       {isBrowserOpen && <VibeBrowser onClose={() => setIsBrowserOpen(false)} />}
     </div>
